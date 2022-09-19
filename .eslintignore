@@ -5,3 +5,4 @@ out
 **/.eslintrc.js
 commitlint.config.js
 jest.config.ts
+scripts/

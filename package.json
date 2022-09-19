@@ -5,8 +5,8 @@
   "description": "",
   "author": "MakerX",
   "license": "MIT",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
   },
@@ -14,7 +14,10 @@
     "node": ">=16.0"
   },
   "scripts": {
-    "build": "rimraf dist coverage && tsc -p tsconfig.build.json",
+    "build": "run-s build:*",
+    "build:0-clean": "rimraf dist coverage",
+    "build:1-compile": "tsc -p tsconfig.build.json",
+    "build:2-copy-pkg-json": "node ./scripts/copy-package-json.js",
     "test": "jest --coverage --passWithNoTests",
     "lint": "eslint ./src/ --ext .ts",
     "lint:fix": "eslint ./src/ --ext .ts --fix"

@@ -19,8 +19,8 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: lts/*
-          registry-url: "https://npm.pkg.github.com"
-          scope: "@makerxstudio"
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@makerxstudio'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -36,12 +36,10 @@ jobs:
       - name: Run tests
         run: npm test
 
-
       - name: Publish (if version has been updated)
         uses: JS-DevTools/npm-publish@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          package: 'package.json'
+          package: './dist/package.json'
           check-version: true
-          registry: "https://npm.pkg.github.com"
-
+          registry: 'https://npm.pkg.github.com'
