@@ -2,10 +2,10 @@ import {
   AuthenticationResult,
   AuthorizationCodeRequest,
   AuthorizationUrlRequest,
+  ClientApplication,
   Configuration,
   CryptoProvider,
   LogLevel,
-  PublicClientApplication,
 } from '@azure/msal-node'
 import { Logger } from '@makerxstudio/node-common'
 import { Express, Request, RequestHandler } from 'express'
@@ -38,12 +38,12 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
 }
 
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
-  pca: PublicClientApplication
+  msalClient: ClientApplication
   authReplyRoute: string
 }
 
-const createEnsureAuthenticatedHandler = ({ pca, scopes, authReplyRoute }: AuthInput): RequestHandler => {
-  const login = createLoginHandler({ pca, scopes, authReplyRoute })
+const createEnsureAuthenticatedHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): RequestHandler => {
+  const login = createLoginHandler({ msalClient, scopes, authReplyRoute })
   return (req, res, next) => {
     if (!req.session) throw Error('Express session is not available')
     if (!isCookieSession(req.session)) throw Error('Only cookie-session sessions are supported')
@@ -58,7 +58,7 @@ const createReplyUrl = (req: Request, replyRoute: string) => {
   return `${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`
 }
 
-const createLoginHandler = ({ pca, scopes, authReplyRoute }: AuthInput): RequestHandler => {
+const createLoginHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
   return (req, res) => {
@@ -80,7 +80,7 @@ const createLoginHandler = ({ pca, scopes, authReplyRoute }: AuthInput): Request
           codeChallengeMethod: pkceCodes.challengeMethod,
         }
       })
-      .then((authCodeUrlParameters) => pca.getAuthCodeUrl(authCodeUrlParameters))
+      .then((authCodeUrlParameters) => msalClient.getAuthCodeUrl(authCodeUrlParameters))
       .then((response) => res.redirect(response))
       .catch((error: unknown) => {
         throw error
@@ -89,11 +89,11 @@ const createLoginHandler = ({ pca, scopes, authReplyRoute }: AuthInput): Request
 }
 
 type CreateAuthHandlerInput = Pick<AuthConfig, 'scopes' | 'logger' | 'augmentSession'> & {
-  pca: PublicClientApplication
+  msalClient: ClientApplication
   authReplyRoute: string
 }
 
-const createAuthHandler = ({ pca, scopes, authReplyRoute, augmentSession, logger }: CreateAuthHandlerInput): RequestHandler => {
+const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession, logger }: CreateAuthHandlerInput): RequestHandler => {
   return (req, res) => {
     if (!isPKCEStartedSession(req.session)) throw Error('Invalid session data for this (auth reply) route')
 
@@ -110,7 +110,7 @@ const createAuthHandler = ({ pca, scopes, authReplyRoute, augmentSession, logger
       clientInfo: req.query.client_info as string,
     }
 
-    pca
+    msalClient
       .acquireTokenByCode(tokenRequest)
       .then((response) => {
         if (!response) throw new Error('acquireTokenByCode did not return a response')
@@ -150,7 +150,7 @@ const setBearerHeaderFromSessionHandler: RequestHandler = (req, _res, next) => {
 
 export interface AuthConfig {
   app: Express
-  msalConfig: Configuration
+  msalClient: ClientApplication
   scopes: string[]
   authReplyRoute?: string
   logoutRoute?: string
@@ -168,7 +168,7 @@ export interface RequestHandlers {
 
 export const addPKCEAuthentication = ({
   app,
-  msalConfig,
+  msalClient,
   scopes,
   authReplyRoute = '/auth',
   logoutRoute = '/logout',
@@ -177,11 +177,9 @@ export const addPKCEAuthentication = ({
   augmentSession,
   logger,
 }: AuthConfig): RequestHandlers => {
-  const pca = new PublicClientApplication(msalConfig)
+  const ensureAuthenticatedHandler = createEnsureAuthenticatedHandler({ msalClient, scopes, authReplyRoute })
 
-  const ensureAuthenticatedHandler = createEnsureAuthenticatedHandler({ pca, scopes, authReplyRoute })
-
-  app.get(authReplyRoute, createAuthHandler({ pca, scopes, authReplyRoute, augmentSession, logger }))
+  app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
   logger?.info(`Auth reply handler added to route ${authReplyRoute}`)
 
   app.get(logoutRoute, logoutHandler)
