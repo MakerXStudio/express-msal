@@ -136,12 +136,12 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
   }
 }
 
-const logoutHandler: RequestHandler = (req, res) => {
+const logout: RequestHandler = (req, res) => {
   req.session = null
   res.send('🙋🏽‍♀️').end()
 }
 
-const setBearerHeaderFromSessionHandler: RequestHandler = (req, _res, next) => {
+const setBearerHeader: RequestHandler = (req, _res, next) => {
   const session = req.session
   if (!isAuthenticatedSession(session)) return next()
   req.headers.authorization = `Bearer ${session.accessToken}`
@@ -153,17 +153,14 @@ export interface AuthConfig {
   msalClient: ClientApplication
   scopes: string[]
   authReplyRoute?: string
-  logoutRoute?: string
-  protectRoute?: string
-  setBearerHeaderRoute?: string
   augmentSession?: (response: AuthenticationResult) => Record<string, unknown> | undefined
   logger?: Logger
 }
 
 export interface RequestHandlers {
-  ensureAuthenticatedHandler: RequestHandler
-  logoutHandler: RequestHandler
-  setBearerHeaderFromSessionHandler: RequestHandler
+  ensureAuthenticated: RequestHandler
+  logout: RequestHandler
+  setBearerHeader: RequestHandler
 }
 
 export const addPKCEAuthentication = ({
@@ -171,31 +168,15 @@ export const addPKCEAuthentication = ({
   msalClient,
   scopes,
   authReplyRoute = '/auth',
-  logoutRoute = '/logout',
-  protectRoute = '*',
-  setBearerHeaderRoute = '*',
   augmentSession,
   logger,
 }: AuthConfig): RequestHandlers => {
-  const ensureAuthenticatedHandler = createEnsureAuthenticatedHandler({ msalClient, scopes, authReplyRoute })
+  const ensureAuthenticated = createEnsureAuthenticatedHandler({ msalClient, scopes, authReplyRoute })
 
   app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
   logger?.info(`Auth reply handler added to route ${authReplyRoute}`)
 
-  app.get(logoutRoute, logoutHandler)
-  logger?.info(`Logout handler added to route ${logoutRoute}`)
-
-  if (protectRoute) {
-    app.get(protectRoute, ensureAuthenticatedHandler)
-    logger?.info(`PKCE handler (ensureAuthenticatedHandler) added to route GET ${protectRoute}`)
-  }
-
-  if (setBearerHeaderRoute) {
-    app.post(setBearerHeaderRoute, setBearerHeaderFromSessionHandler)
-    logger?.info(`Bearer header setup handler (setBearerHeaderFromSessionHandler) added to route POST ${setBearerHeaderRoute}`)
-  }
-
-  return { ensureAuthenticatedHandler, logoutHandler, setBearerHeaderFromSessionHandler }
+  return { ensureAuthenticated, logout, setBearerHeader }
 }
 
 export enum NpmLogLevel {
