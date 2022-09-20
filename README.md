@@ -4,11 +4,11 @@ Simple server-side cookie-session based Azure AD authentication for Express.js a
 
 ## What does this do?
 
-This library wraps [@azure/msal-node](https://www.npmjs.com/package/@azure/msal-node) to provide a simple way to run interactive authentication on Express JS hosted UIs (web pages) that need to call APIs using Bearer token authentication (without writing and deploying client-side code to perform MSAL auth or using server-side sessions).
+This library wraps [@azure/msal-node](https://www.npmjs.com/package/@azure/msal-node) to provide a simple way to run interactive authentication on Express JS hosted UIs (web pages) that need to call APIs using Bearer token authentication, without writing and deploying client-side MSAL code.
 
-For example, we host GraphQL Playground, Apollo Sandbox, Voyager etc alongside a GraphQL API using server-side middleware, this package allows us to add authentication to all those UI endpoints without building and deploying or individually configuring UI code.
+As an example use case, we host GraphQL Playground or Apollo Sandbox and Voyager UIs alongside our GraphQL APIs from server-side middleware. This package allows us to add authentication across all those UIs without building, packaging and deploying custom UI code.
 
-For Bearer token authentication, see ['@makerxstudio/express-bearer'](https://github.com/MakerXStudio/express-bearer).
+For Bearer token authentication, see [@makerxstudio/express-bearer](https://github.com/MakerXStudio/express-bearer).
 
 ## Usage
 
@@ -39,7 +39,7 @@ app.get(ensureAuthenticated)
 app.post('/graphql', setBearerHeader)
 ```
 
-- `ensureAuthenticated` starts the PKCE auth flow and upon completion, creates a cookie-session containing an accessToken and any extra info you choose to augment the session with.
+- `ensureAuthenticated` starts the PKCE auth flow and upon completion, creates a cookie-session containing an accessToken.
 - `setBearerHeader`: Takes the accessToken from the session cookie and adds a Bearer {token} header onto the request.
 
 ## Is this secure?
@@ -61,9 +61,9 @@ const cookieSessionOptions = {
 app.use(cookieSession(cookieSessionOptions))
 ```
 
-## Options
+## Config
 
-`BearerAuthOptions`:
+`AuthConfig`:
 
 | Option           | Description                                                                                                                               |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
@@ -80,7 +80,7 @@ app.use(cookieSession(cookieSessionOptions))
 // set up cookie-session
 const cookieSessionOptions = {
   name: '<session-name>',
-  maxAge: 1000 * 60 * 60,
+  maxAge: 1000 * 60 * 60, // match session lifetime to the access token
   sameSite: 'strict',
   secure: true,
   httpOnly: true,
