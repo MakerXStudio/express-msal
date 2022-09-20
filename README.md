@@ -1,27 +1,54 @@
 # Express MSAL
 
-Simple client-side session-based Azure AD authentication for Express.js apps.
+Simple server-side cookie-session based Azure AD authentication for Express.js apps.
 
 ## What does this do?
 
-This library wraps [@azure/msal-node](https://www.npmjs.com/package/@azure/msal-node) and [azure-ad-verify-token](https://github.com/justinlettau/azure-ad-verify-token#azure-ad-verify-token) to provide a simple way to run interactive authentication on an Express website that calls APIs authenticated via Bearer Header (without writing a web page that performs MSAL auth or using server-side sessions):
+This library wraps [@azure/msal-node](https://www.npmjs.com/package/@azure/msal-node) to provide a simple way to run interactive authentication on Express JS hosted UIs (web pages) that need to call APIs using Bearer token authentication (without writing and deploying client-side code to perform MSAL auth or using server-side sessions).
 
-- Azure AD server-side invoked PKCE authentication (for GETs)
-- Sets up a session\* containing an access token (JWT) (and any other info you augment the session with)
-- RequestHandler sets the authorization header `Bearer {access token}` (for POSTs)
-- The bearer token validator handler will set `req.user` to the decoded valid token or return `401 Unauthorized`
+For example, we host GraphQL Playground, Apollo Sandbox, Voyager etc alongside a GraphQL API using server-side middleware, this package allows us to add authentication to all those UI endpoints without building and deploying or individually configuring UI code.
 
-The PKCE implementation is based on the official @azure/msal-node [auth-code-pkce sample](https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/auth-code-pkce/src/index.ts).
+For Bearer token authentication, see ['@makerxstudio/express-bearer'](https://github.com/MakerXStudio/express-bearer).
 
-## Is it secure\*?
+## Usage
 
-We only use cookie-session with this library, along with secure-as-possible cookie configuration. The logic here is that Azure AD tokens are already persisted in browser storage and are freely available in the browser, however it's definitely possible to configure an insecure session cookie that does not restrict access and can allow cookie data to be leaked.
+```
+npm install @azure/msal-node express cookie-session @makerxstudio/express-msal
+```
 
-We strongly advise against storing session data (access tokens) server-side.
+```ts
+import { PublicClientApplication } from '@azure/msal-node'
+import { addPKCEAuthentication, AuthConfig, Configuration, isAuthenticatedSession } from '@makerxstudio/express-msal'
+import cookieSession from 'cookie-session'
 
-Cookies are stored in the browser in plain text and (depending on configuration) cookies are not secure-by-default.
+const app = express()
+app.use(cookieSession(cookieSessionOptions))
 
-We strongly recommend ensuring you configure your [cookie-session options](https://github.com/expressjs/cookie-session#options) carefully, applying the most restrictive policy for your use-case. E.g. setting `path`, `domain`, `sameSite`, `secure`, `httpOnly` etc.
+const msalApp = new PublicClientApplication(msalConfig)
+const pkceAuthConfig: AuthConfig = {
+  app,
+  msalApp,
+  scopes: ['profile', 'api://my-api/.default'],
+}
+// add PKCE authentication using the default reply url '/auth'
+const { ensureAuthenticated, logout, setBearerHeader } = addPKCEAuthentication(pkceAuthConfig)
+
+// trigger interactive auth on all GET requests
+app.get(ensureAuthenticated)
+// set a Bearer {token} authorization header on all POST request to /graphql
+app.post('/graphql', setBearerHeader)
+```
+
+- `ensureAuthenticated` starts the PKCE auth flow and upon completion, creates a cookie-session containing an accessToken and any extra info you choose to augment the session with.
+- `setBearerHeader`: Takes the accessToken from the session cookie and adds a Bearer {token} header onto the request.
+
+## Is this secure?
+
+We only use cookie-session with this library, along with secure-as-possible cookie configuration.
+
+The logic here is that access tokens are already persisted in browser storage and are freely available in the browser, however it's definitely possible to configure an insecure session cookie that does not restrict access to the cookie and access token adequately.
+
+We strongly recommend configuring your [cookie-session options](https://github.com/expressjs/cookie-session#options) carefully, applying the most restrictive policy, setting `path`, `domain`, `sameSite`, `secure`, `httpOnly` etc.
 
 ```ts
 const cookieSessionOptions = {
@@ -34,16 +61,20 @@ const cookieSessionOptions = {
 app.use(cookieSession(cookieSessionOptions))
 ```
 
-## Getting started
+## Options
 
-### Front-end authentication
+`BearerAuthOptions`:
 
-By default:
+| Option           | Description                                                                                                                               |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`            | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                      |
+| `msalClient`     | The `@azure/msal-node` `ClientApplication` instance, either a `PublicClientApplication` or `ConfidentialClientApplication` (e.g. for B2C) |
+| `scopes`         | The scopes to use to aquire the accessToken.                                                                                              |
+| `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured on the App Registration, default: `/auth`.          |
+| `augmentSession` | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                             |
+| `logger`         | Optional logger implementation to log token validation errors, handler setup info entry etc.                                              |
 
-- adds a PKCE front-end authentication handers to `GET *`
-- adds an Azure AD reply authentication handler to `GET /auth`
-- adds a logout handler to `GET /logout`
-- set the request authorisation header to `Bearer {token}` on `POST *`
+## Detailed usage examples
 
 ```ts
 // set up cookie-session
@@ -56,53 +87,81 @@ const cookieSessionOptions = {
 }
 app.use(cookieSession(cookieSessionOptions))
 
-// set up front-end auth
-const serverUrl = 'https://localhost:4000'
+// set up msal client (use ConfidentialClientApplication for B2C)
+const msalApp = new PublicClientApplication({
+  auth: {
+    clientId: '<client ID>',
+    authority: 'https://login.microsoftonline.com/<tenant ID>',
+  },
+})
+
+// configure all config options
 const pkceAuthConfig: AuthConfig = {
   app,
-  msalConfig: {
-    auth: {
-      clientId: '<client ID>',
-      authority: 'https://login.microsoftonline.com/<tenant ID>',
-    },
+  msalApp,
+  scopes: ['profile', 'api://my-api/.default'],
+  // specify non-default reply url
+  replyUrl: '/auth-callback',
+  // add some additional info to the session from the msal `AuthenticationResult`
+  augmentSession: (response) => {
+    return { username: response.account?.username }
   },
-  scopes: ['Scope1', 'Scope2'],
-  serverUrl,
+  // specify a logger
+  logger,
 }
-addPKCEAuthentication(pkceAuthConfig)
+
+// add PKCE authentication
+const { ensureAuthenticated, logout, setBearerHeader } = addPKCEAuthentication(pkceAuthConfig)
+
+// add interactive auth to all GET requests
+app.get(ensureAuthenticated)
+// set a Bearer {token} authorization header on all POST request to '/graphql'
+app.post('/graphql', setBearerHeader)
+// add a logout endpoint for GET requests to /logout
+app.get('/logout', logout)
+// return the currently logger in user's username from GET requests to /user
+app.get('/user', (req, res) => {
+  if (!isAuthenticatedSession(req.session)) return res.status(400).send('Not logged in').end()
+  res.send(req.session.username).end()
+})
 ```
-
-### Back-end authentication
-
-Sets `req.user` to the decoded valid token or returns `401 Unauthorized`.
-
-By default:
-
-- Adds a JWT token validation handler to `POST *`
-- Will return 401 Unauthorised for invalid / expired tokens
-- Will return 401 Unauthorised if there is no `Bearer {token}` supplied (configurable)
-
-```ts
-// set up JWT token validation
-const bearerOptions = {
-  jwksUri: 'https://login.microsoftonline.com/<tenant ID>/discovery/v2.0/keys',
-  issuer: 'https://login.microsoftonline.com/<tenant ID>/v2.0',
-  audience: '<audience ID>',
-}
-addBearerTokenValidationHandler({ app, bearerOptions })
-```
-
-## Non default configuration
-
-TODO: specify config options, non-default routes, using request handlers
 
 ### Logging
 
-Pass a `Logger` implementation into `addPKCEAuthentication` and `addBearerTokenValidationHandler` for optional logging from this package.
+Set the logger implementation to an object that fulfills the `Logger` definition:
+
+```ts
+type Logger = {
+  error(message: string, ...optionalParams: unknown[]): void
+  warn(message: string, ...optionalParams: unknown[]): void
+  info(message: string, ...optionalParams: unknown[]): void
+  verbose(message: string, ...optionalParams: unknown[]): void
+  debug(message: string, ...optionalParams: unknown[]): void
+}
+```
+
+Note: this type is compatible with [winston loggers](https://github.com/winstonjs/winston).
+
+The following example uses console logging:
+
+```ts
+const logger: Logger = {
+  error: (message: string, ...params: unknown[]) => console.error
+  warn: (message: string, ...params: unknown[]) => console.warn
+  info: (message: string, ...params: unknown[]) => console.info
+  verbose: (message: string, ...params: unknown[]) => console.trace
+  debug: (message: string, ...params: unknown[]) => console.debug
+}
+
+const pkceAuthConfig: AuthConfig = {
+  /* other config */
+  logger,
+}
+```
 
 #### @azure/msal-node
 
-Use the MSAL system loggerOptions config to control logging from the @azure/msal package
+Use the MSAL system loggerOptions config to control logging from the @azure/msal package:
 
 ```ts
 const config: Partial<Configuration> = {
