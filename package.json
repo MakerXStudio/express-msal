@@ -23,12 +23,12 @@
     "lint:fix": "eslint ./src/ --ext .ts --fix"
   },
   "peerDependencies": {
+    "@azure/msal-node": "*",
+    "cookie-session": "*",
     "express": "*"
   },
   "dependencies": {
-    "@azure/msal-node": "^1.14.0",
-    "@makerxstudio/node-common": "^0.0.3",
-    "cookie-session": "^2.0.0"
+    "@makerxstudio/node-common": "^0.0.3"
   },
   "devDependencies": {
     "@tsconfig/node16": "^1.0.3",
