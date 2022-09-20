@@ -1,0 +1,14 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    uses: ./.github/workflows/node-publish-internal.yml
