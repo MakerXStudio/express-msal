@@ -141,7 +141,7 @@ export const logout: RequestHandler = (req, res) => {
   res.send('🙋🏽‍♀️').end()
 }
 
-export const setBearerHeaderFromSession: RequestHandler = (req, _res, next) => {
+export const copySessionJwtToBearerHeader: RequestHandler = (req, _res, next) => {
   const session = req.session
   if (!isAuthenticatedSession(session)) return next()
   req.headers.authorization = `Bearer ${session.accessToken}`

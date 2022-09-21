@@ -18,7 +18,7 @@ npm install @azure/msal-node express cookie-session @makerxstudio/express-msal
 
 ```ts
 import { PublicClientApplication } from '@azure/msal-node'
-import { AuthConfig, pkceAuthenticationMiddleware, setBearerHeaderFromSession } from '@makerxstudio/express-msal'
+import { AuthConfig, pkceAuthenticationMiddleware, copySessionJwtToBearerHeader } from '@makerxstudio/express-msal'
 import cookieSession from 'cookie-session'
 
 const app = express()
@@ -34,11 +34,11 @@ const authConfig: AuthConfig = {
 // trigger pkce auth on GET requests (iteractive users accessing UIs)
 app.get(pkceAuthenticationMiddleware(authConfig))
 // set a Bearer {token} auth header on POST request to '/graphql'
-app.post('/graphql', setBearerHeaderFromSession)
+app.post('/graphql', copySessionJwtToBearerHeader)
 ```
 
 - `pkceAuthenticationMiddleware` starts the PKCE auth flow (redirect) when there is no session, creates a cookie-session containing an accessToken.
-- `setBearerHeaderFromSession`: takes the accessToken from the session cookie and adds a Bearer {token} header onto the request.
+- `copySessionJwtToBearerHeader`: takes the accessToken from the session cookie and adds a Bearer {token} header onto the request, useful for supporting API access from your session-basedd auth
 
 ## Is this secure?
 
@@ -112,7 +112,7 @@ const authConfig: AuthConfig = {
 app.use(/^\/(?!api).*/, pkceAuthenticationMiddleware(authConfig))
 
 // set a Bearer {token} auth header on request to '/api*
-app.use('/api*', setBearerHeaderFromSession)
+app.use('/api*', copySessionJwtToBearerHeader)
 
 // add a logout endpoint for GET requests to /logout
 app.get('/logout', logout)
