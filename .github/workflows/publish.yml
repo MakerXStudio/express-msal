@@ -10,5 +10,7 @@ permissions:
   packages: write
 
 jobs:
+  ci:
+    uses: ./.github/workflows/node-ci.yml
   publish:
     uses: ./.github/workflows/node-publish-internal.yml

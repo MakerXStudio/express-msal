@@ -1,4 +1,3 @@
-name: publish
 on:
   workflow_call:
     inputs:
@@ -12,7 +11,7 @@ on:
         default: './dist/package.json'
 
 jobs:
-  publish:
+  node-publish-internal:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -35,10 +34,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - run: npm rebuild && npm run prepare --if-present
 
-      - run: npm run lint --if-present
-      - run: npm run check-types --if-present
-      - run: npm run test --if-present
-      - run: npm run audit --if-present
       - run: npm run build
 
       - name: Publish (if version has been updated)

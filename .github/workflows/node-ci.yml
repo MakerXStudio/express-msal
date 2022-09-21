@@ -2,7 +2,7 @@ on:
   workflow_call:
 
 jobs:
-  ci:
+  node-ci:
     runs-on: ubuntu-latest
 
     strategy:
