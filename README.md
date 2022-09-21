@@ -31,10 +31,10 @@ const authConfig: AuthConfig = {
   scopes: ['profile', 'api://my-api/.default'],
 }
 
-// trigger interactive auth on GET requests (for the UIs)
+// trigger pkce auth on GET requests (iteractive users accessing UIs)
 app.get(pkceAuthenticationMiddleware(authConfig))
-// set a Bearer {token} authorization header on request to '/api/*
-app.use('/api/*', setBearerHeaderFromSession)
+// set a Bearer {token} auth header on POST request to '/graphql'
+app.post('/graphql', setBearerHeaderFromSession)
 ```
 
 - `pkceAuthenticationMiddleware` starts the PKCE auth flow (redirect) when there is no session, creates a cookie-session containing an accessToken.
@@ -108,12 +108,15 @@ const authConfig: AuthConfig = {
   logger,
 }
 
-// trigger interactive auth on GET requests (for the UIs)
-app.get(pkceAuthenticationMiddleware(authConfig))
-// set a Bearer {token} authorization header on POST request to '/graphql'
-app.post('/graphql', setBearerHeaderFromSession)
+// use pkce auth on everything apart from ./api*
+app.use(/^\/(?!api).*/, pkceAuthenticationMiddleware(authConfig))
+
+// set a Bearer {token} auth header on request to '/api*
+app.use('/api*', setBearerHeaderFromSession)
+
 // add a logout endpoint for GET requests to /logout
 app.get('/logout', logout)
+
 // return the currently logger in user's username from GET requests to /user
 app.get('/user', (req, res) => {
   if (!isAuthenticatedSession(req.session)) return res.status(400).send('Not logged in').end()
