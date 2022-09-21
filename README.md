@@ -18,29 +18,27 @@ npm install @azure/msal-node express cookie-session @makerxstudio/express-msal
 
 ```ts
 import { PublicClientApplication } from '@azure/msal-node'
-import { addPKCEAuthentication, AuthConfig, Configuration, isAuthenticatedSession } from '@makerxstudio/express-msal'
+import { AuthConfig, pkceAuthenticationMiddleware, setBearerHeaderFromSession } from '@makerxstudio/express-msal'
 import cookieSession from 'cookie-session'
 
 const app = express()
 app.use(cookieSession(cookieSessionOptions))
 
 const msalApp = new PublicClientApplication(msalConfig)
-const pkceAuthConfig: AuthConfig = {
+const authConfig: AuthConfig = {
   app,
   msalApp,
   scopes: ['profile', 'api://my-api/.default'],
 }
-// add PKCE authentication using the default reply url '/auth'
-const { ensureAuthenticated, logout, setBearerHeader } = addPKCEAuthentication(pkceAuthConfig)
 
-// trigger interactive auth on all GET requests
-app.get(ensureAuthenticated)
-// set a Bearer {token} authorization header on all POST request to /graphql
-app.post('/graphql', setBearerHeader)
+// trigger interactive auth on GET requests (for the UIs)
+app.get(pkceAuthenticationMiddleware(authConfig))
+// set a Bearer {token} authorization header on POST request to /api
+app.post('/api/*', setBearerHeaderFromSession)
 ```
 
-- `ensureAuthenticated` starts the PKCE auth flow and upon completion, creates a cookie-session containing an accessToken.
-- `setBearerHeader`: Takes the accessToken from the session cookie and adds a Bearer {token} header onto the request.
+- `pkceAuthenticationMiddleware` starts the PKCE auth flow (redirect) when there is no session, creates a cookie-session containing an accessToken.
+- `setBearerHeaderFromSession`: takes the accessToken from the session cookie and adds a Bearer {token} header onto the request.
 
 ## Is this secure?
 
@@ -70,7 +68,7 @@ app.use(cookieSession(cookieSessionOptions))
 | `app`            | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                      |
 | `msalClient`     | The `@azure/msal-node` `ClientApplication` instance, either a `PublicClientApplication` or `ConfidentialClientApplication` (e.g. for B2C) |
 | `scopes`         | The scopes to use to aquire the accessToken.                                                                                              |
-| `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured on the App Registration, default: `/auth`.          |
+| `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`.    |
 | `augmentSession` | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                             |
 | `logger`         | Optional logger implementation to log token validation errors, handler setup info entry etc.                                              |
 
@@ -96,7 +94,7 @@ const msalApp = new PublicClientApplication({
 })
 
 // configure all config options
-const pkceAuthConfig: AuthConfig = {
+const authConfig: AuthConfig = {
   app,
   msalApp,
   scopes: ['profile', 'api://my-api/.default'],
@@ -110,13 +108,10 @@ const pkceAuthConfig: AuthConfig = {
   logger,
 }
 
-// add PKCE authentication
-const { ensureAuthenticated, logout, setBearerHeader } = addPKCEAuthentication(pkceAuthConfig)
-
-// add interactive auth to all GET requests
-app.get(ensureAuthenticated)
-// set a Bearer {token} authorization header on all POST request to '/graphql'
-app.post('/graphql', setBearerHeader)
+// trigger interactive auth on GET requests (for the UIs)
+app.get(pkceAuthenticationMiddleware(authConfig))
+// set a Bearer {token} authorization header on POST request to '/graphql'
+app.post('/graphql/*', setBearerHeaderFromSession)
 // add a logout endpoint for GET requests to /logout
 app.get('/logout', logout)
 // return the currently logger in user's username from GET requests to /user

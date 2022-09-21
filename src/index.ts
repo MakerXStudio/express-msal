@@ -136,12 +136,12 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
   }
 }
 
-const logout: RequestHandler = (req, res) => {
+export const logout: RequestHandler = (req, res) => {
   req.session = null
   res.send('🙋🏽‍♀️').end()
 }
 
-const setBearerHeader: RequestHandler = (req, _res, next) => {
+export const setBearerHeaderFromSession: RequestHandler = (req, _res, next) => {
   const session = req.session
   if (!isAuthenticatedSession(session)) return next()
   req.headers.authorization = `Bearer ${session.accessToken}`
@@ -157,26 +157,20 @@ export interface AuthConfig {
   logger?: Logger
 }
 
-export interface RequestHandlers {
-  ensureAuthenticated: RequestHandler
-  logout: RequestHandler
-  setBearerHeader: RequestHandler
-}
-
-export const addPKCEAuthentication = ({
+export const pkceAuthenticationMiddleware = ({
   app,
   msalClient,
   scopes,
   authReplyRoute = '/auth',
   augmentSession,
   logger,
-}: AuthConfig): RequestHandlers => {
+}: AuthConfig): RequestHandler => {
   const ensureAuthenticated = createEnsureAuthenticatedHandler({ msalClient, scopes, authReplyRoute })
 
   app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
   logger?.info(`Auth reply handler added to route ${authReplyRoute}`)
 
-  return { ensureAuthenticated, logout, setBearerHeader }
+  return ensureAuthenticated
 }
 
 export enum NpmLogLevel {
