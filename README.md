@@ -33,8 +33,8 @@ const authConfig: AuthConfig = {
 
 // trigger interactive auth on GET requests (for the UIs)
 app.get(pkceAuthenticationMiddleware(authConfig))
-// set a Bearer {token} authorization header on POST request to /api
-app.post('/api/*', setBearerHeaderFromSession)
+// set a Bearer {token} authorization header on request to '/api/*
+app.use('/api/*', setBearerHeaderFromSession)
 ```
 
 - `pkceAuthenticationMiddleware` starts the PKCE auth flow (redirect) when there is no session, creates a cookie-session containing an accessToken.
@@ -111,7 +111,7 @@ const authConfig: AuthConfig = {
 // trigger interactive auth on GET requests (for the UIs)
 app.get(pkceAuthenticationMiddleware(authConfig))
 // set a Bearer {token} authorization header on POST request to '/graphql'
-app.post('/graphql/*', setBearerHeaderFromSession)
+app.post('/graphql', setBearerHeaderFromSession)
 // add a logout endpoint for GET requests to /logout
 app.get('/logout', logout)
 // return the currently logger in user's username from GET requests to /user
