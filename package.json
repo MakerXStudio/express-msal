@@ -20,7 +20,8 @@
     "build:2-copy-pkg-json": "node ./scripts/copy-package-json.js",
     "test": "jest --coverage --passWithNoTests",
     "lint": "eslint ./src/ --ext .ts",
-    "lint:fix": "eslint ./src/ --ext .ts --fix"
+    "lint:fix": "eslint ./src/ --ext .ts --fix",
+    "audit": "npm audit --audit-level=moderate"
   },
   "peerDependencies": {
     "@azure/msal-node": "*",
@@ -35,8 +36,8 @@
     "@types/cookie-session": "^2.0.44",
     "@types/express": "^4.17.14",
     "@types/jest": "^29.0.3",
-    "@typescript-eslint/eslint-plugin": "^5.37.0",
-    "@typescript-eslint/parser": "^5.37.0",
+    "@typescript-eslint/eslint-plugin": "^5.38.0",
+    "@typescript-eslint/parser": "^5.38.0",
     "eslint": "8.23.1",
     "eslint-config-prettier": "^8.5.0",
     "eslint-plugin-node": "^11.1.0",

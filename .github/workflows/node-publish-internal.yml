@@ -37,7 +37,8 @@ jobs:
 
       - run: npm run lint --if-present
       - run: npm run check-types --if-present
-      - run: npm test --if-present
+      - run: npm run test --if-present
+      - run: npm run audit --if-present
       - run: npm run build
 
       - name: Publish (if version has been updated)
