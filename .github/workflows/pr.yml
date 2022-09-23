@@ -10,4 +10,4 @@ permissions:
 
 jobs:
   pull_request:
-    uses: ./.github/workflows/node-ci.yml
+    uses: makerxstudio/shared-config/.github/workflows/node-ci.yml@main

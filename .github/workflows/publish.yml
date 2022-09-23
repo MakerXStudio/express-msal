@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   ci:
-    uses: ./.github/workflows/node-ci.yml
+    uses: makerxstudio/shared-config/.github/workflows/node-ci.yml@main
   publish:
-    uses: ./.github/workflows/node-publish-internal.yml
+    needs: ci
+    uses: makerxstudio/shared-config/.github/workflows/node-publish-internal.yml@main
