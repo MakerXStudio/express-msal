@@ -113,7 +113,10 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
     msalClient
       .acquireTokenByCode(tokenRequest)
       .then((response) => {
-        if (!response) throw new Error('acquireTokenByCode did not return a response')
+        if (!response) {
+          logger?.error('acquireTokenByCode did not return a response')
+          return res.status(500).send('acquireTokenByCode did not return a response').end()
+        }
 
         let session: AuthenticatedSession = {
           isAuthenticated: true,
@@ -131,7 +134,8 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
         }
       })
       .catch((error: unknown) => {
-        throw error
+        logger?.error('Failed to acquireTokenByCode', { error })
+        res.status(500).send('acquireTokenByCode failed').end()
       })
   }
 }
