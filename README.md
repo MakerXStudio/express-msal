@@ -94,9 +94,9 @@ app.use(cookieSession(cookieSessionOptions))
 // set up msal client
 const msalApp = new ConfidentialClientApplication({
   auth: {
-    clientId: '<client ID>',
-    clientSecret: '<client Secret>'
-    authority: 'https://login.microsoftonline.com/<tenant ID>',
+    clientId: '<client-ID>',
+    clientSecret: '<client-secret>'
+    authority: 'https://login.microsoftonline.com/<tenant-ID>',
   },
 })
 
