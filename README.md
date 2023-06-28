@@ -17,14 +17,14 @@ npm install @azure/msal-node express cookie-session @makerxstudio/express-msal
 ```
 
 ```ts
-import { PublicClientApplication } from '@azure/msal-node'
+import { ConfidentialClientApplication } from '@azure/msal-node'
 import { AuthConfig, pkceAuthenticationMiddleware, copySessionJwtToBearerHeader } from '@makerxstudio/express-msal'
 import cookieSession from 'cookie-session'
 
 const app = express()
 app.use(cookieSession(cookieSessionOptions))
 
-const msalApp = new PublicClientApplication(msalConfig)
+const msalApp = new ConfidentialClientApplication(msalConfig)
 const authConfig: AuthConfig = {
   app,
   msalApp,
@@ -41,6 +41,12 @@ app.post('/graphql', copySessionJwtToBearerHeader)
 - `copySessionJwtToBearerHeader`: takes the accessToken from the session cookie and adds a Bearer {token} header onto the request, useful for supporting API access from your session-basedd auth
 
 ## Is this secure?
+
+### Auth configuration security
+
+We recommend you `Web` platform auth configuration in Azure and use `ConfidentialClientApplication` (which requires a client secret). Using this auth configuration which requires a client secret prevents your auth client ID being used outside of your controlled server-side application.
+
+### Session security
 
 We only use cookie-session with this library, along with secure-as-possible cookie configuration.
 
@@ -63,14 +69,14 @@ app.use(cookieSession(cookieSessionOptions))
 
 `AuthConfig`:
 
-| Option           | Description                                                                                                                               |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `app`            | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                      |
-| `msalClient`     | The `@azure/msal-node` `ClientApplication` instance. |
-| `scopes`         | The scopes to use to aquire the accessToken.                                                                                              |
-| `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`.    |
-| `augmentSession` | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                             |
-| `logger`         | Optional logger implementation to log token validation errors, handler setup info entry etc.                                              |
+| Option           | Description                                                                                                                            |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`            | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                   |
+| `msalClient`     | The `@azure/msal-node ConfidentialClientApplication` instance.                                                                         |
+| `scopes`         | The scopes to use to aquire the accessToken.                                                                                           |
+| `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`. |
+| `augmentSession` | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                          |
+| `logger`         | Optional logger implementation to log token validation errors, handler setup info entry etc.                                           |
 
 ## Detailed usage examples
 
@@ -86,9 +92,10 @@ const cookieSessionOptions = {
 app.use(cookieSession(cookieSessionOptions))
 
 // set up msal client
-const msalApp = new PublicClientApplication({
+const msalApp = new ConfidentialClientApplication({
   auth: {
     clientId: '<client ID>',
+    clientSecret: '<client Secret>'
     authority: 'https://login.microsoftonline.com/<tenant ID>',
   },
 })
