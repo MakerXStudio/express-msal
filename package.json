@@ -21,7 +21,7 @@
     "test": "jest --coverage --passWithNoTests",
     "lint": "eslint ./src/ --ext .ts",
     "lint:fix": "eslint ./src/ --ext .ts --fix",
-    "audit": "npm audit"
+    "audit": "npx --yes better-npm-audit audit -x GHSA-j8xg-fqg3-53r7"
   },
   "peerDependencies": {
     "@azure/msal-node": "*",
@@ -29,28 +29,29 @@
     "express": "*"
   },
   "dependencies": {
-    "@makerxstudio/node-common": "^0.1.0"
+    "@makerxstudio/node-common": "^0.4.0"
   },
   "devDependencies": {
-    "@tsconfig/node16": "^1.0.3",
+    "@tsconfig/node16": "^1.0.4",
     "@types/cookie-session": "^2.0.44",
-    "@types/express": "^4.17.15",
-    "@types/jest": "^29.2.4",
-    "@typescript-eslint/eslint-plugin": "^5.47.0",
-    "@typescript-eslint/parser": "^5.47.0",
-    "eslint": "8.30.0",
-    "eslint-config-prettier": "^8.5.0",
+    "@types/express": "^4.17.17",
+    "@types/jest": "^29.5.2",
+    "@typescript-eslint/eslint-plugin": "^5.60.1",
+    "@typescript-eslint/parser": "^5.60.1",
+    "eslint": "8.43.0",
+    "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-node": "^11.1.0",
     "eslint-plugin-prettier": "^4.2.1",
-    "express": "^4.18.1",
+    "express": "^4.18.2",
     "npm-run-all": "^4.1.5",
-    "prettier": "^2.8.1",
-    "rimraf": "^3.0.2",
-    "ts-jest": "^29.0.3",
+    "prettier": "^2.8.8",
+    "rimraf": "^5.0.1",
+    "ts-jest": "^29.1.0",
     "ts-node": "^10.9.1",
-    "typescript": "^4.9.4"
+    "typescript": "^5.1.5"
   },
   "overrides": {
-    "jsonwebtoken": "^9.0.0"
+    "jsonwebtoken": "^9.0.0",
+    "semver": "^7.5.3"
   }
 }
