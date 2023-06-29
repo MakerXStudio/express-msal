@@ -7,7 +7,7 @@ import {
   CryptoProvider,
   LogLevel,
 } from '@azure/msal-node'
-import { Logger } from '@makerxstudio/node-common'
+import { Logger } from '@makerx/node-common'
 import { Express, Request, RequestHandler } from 'express'
 
 // implementation based on the official pkce sample:
