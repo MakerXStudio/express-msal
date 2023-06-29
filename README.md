@@ -44,7 +44,7 @@ app.post('/graphql', copySessionJwtToBearerHeader)
 
 ### Auth configuration security
 
-We recommend you `Web` platform auth configuration in Azure and use `ConfidentialClientApplication` (which requires a client secret). Using this auth configuration which requires a client secret prevents your auth client ID being used outside of your controlled server-side application.
+We recommend you use the `Web` platform auth configuration in Azure and use `ConfidentialClientApplication` (which requires a client secret). Using this auth configuration which requires a client secret prevents your auth client ID being used outside of your controlled server-side application.
 
 ### Session security
 
