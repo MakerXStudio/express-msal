@@ -72,7 +72,7 @@ app.use(cookieSession(cookieSessionOptions))
 | Option           | Description                                                                                                                            |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `app`            | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                   |
-| `msalClient`     | The `@azure/msal-node ConfidentialClientApplication` instance.                                                                         |
+| `msalClient`     | The `@azure/msal-node` `ConfidentialClientApplication` instance.                                                                         |
 | `scopes`         | The scopes to use to aquire the accessToken.                                                                                           |
 | `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`. |
 | `augmentSession` | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                          |
