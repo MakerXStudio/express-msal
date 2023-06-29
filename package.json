@@ -21,7 +21,7 @@
     "test": "jest --coverage --passWithNoTests",
     "lint": "eslint ./src/ --ext .ts",
     "lint:fix": "eslint ./src/ --ext .ts --fix",
-    "audit": "npx --yes better-npm-audit audit -x GHSA-j8xg-fqg3-53r7"
+    "audit": "npx --yes better-npm-audit audit"
   },
   "peerDependencies": {
     "@azure/msal-node": "*",
