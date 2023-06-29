@@ -1,23 +1,29 @@
 {
-  "name": "@makerxstudio/express-msal",
-  "version": "1.2.0",
+  "name": "@makerx/express-msal",
+  "version": "1.0.0",
   "private": false,
   "description": "",
   "author": "MakerX",
   "license": "MIT",
   "main": "index.js",
   "types": "index.d.ts",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "engines": {
     "node": ">=16.0"
+  },
+  "bugs": {
+    "url": "https://github.com/MakerXStudio/express-msal/issues"
+  },
+  "homepage": "https://github.com/MakerXStudio/express-msal#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MakerXStudio/express-msal.git"
   },
   "scripts": {
     "build": "run-s build:*",
     "build:0-clean": "rimraf dist coverage",
     "build:1-compile": "tsc -p tsconfig.build.json",
     "build:2-copy-pkg-json": "npx --yes @makerx/ts-toolkit copy-package-json",
+    "build:3-copy-readme": "copyfiles README.md dist",
     "test": "jest --coverage --passWithNoTests",
     "lint": "eslint ./src/ --ext .ts",
     "lint:fix": "eslint ./src/ --ext .ts --fix",
@@ -38,6 +44,7 @@
     "@types/jest": "^29.5.2",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
+    "copyfiles": "^2.4.1",
     "eslint": "8.43.0",
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-node": "^11.1.0",

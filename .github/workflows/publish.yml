@@ -14,6 +14,9 @@ jobs:
     uses: makerxstudio/shared-config/.github/workflows/node-ci.yml@main
     with:
       audit-script: npm run audit
+
   publish:
     needs: ci
-    uses: makerxstudio/shared-config/.github/workflows/node-publish-internal.yml@main
+    uses: makerxstudio/shared-config/.github/workflows/node-publish-public.yml@main
+    secrets:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
