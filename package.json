@@ -27,7 +27,7 @@
     "test": "jest --coverage --passWithNoTests",
     "lint": "eslint ./src/ --ext .ts",
     "lint:fix": "eslint ./src/ --ext .ts --fix",
-    "audit": "npx --yes better-npm-audit audit"
+    "audit": "better-npm-audit audit"
   },
   "peerDependencies": {
     "@azure/msal-node": "*",
@@ -44,6 +44,7 @@
     "@types/jest": "^29.5.2",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
+    "better-npm-audit": "^3.7.3",
     "copyfiles": "^2.4.1",
     "eslint": "8.43.0",
     "eslint-config-prettier": "^8.8.0",
