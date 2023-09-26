@@ -63,7 +63,7 @@ const createLoginHandler = ({
   msalClient,
   scopes,
   authReplyRoute,
-  authorizationUrlRequestOverride: authorizationUrlRequestOverride,
+  authorizationUrlRequestOverride,
 }: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
