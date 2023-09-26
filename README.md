@@ -69,14 +69,15 @@ app.use(cookieSession(cookieSessionOptions))
 
 `AuthConfig`:
 
-| Option           | Description                                                                                                                            |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `app`            | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                   |
-| `msalClient`     | The `@azure/msal-node` `ConfidentialClientApplication` instance.                                                                         |
-| `scopes`         | The scopes to use to aquire the accessToken.                                                                                           |
-| `authReplyRoute` | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`. |
-| `augmentSession` | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                          |
-| `logger`         | Optional logger implementation to log token validation errors, handler setup info entry etc.                                           |
+| Option                            | Description                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`                             | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                                 |
+| `msalClient`                      | The `@azure/msal-node` `ConfidentialClientApplication` instance.                                                                                     |
+| `scopes`                          | The scopes to use to aquire the accessToken.                                                                                                         |
+| `authReplyRoute`                  | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`.               |
+| `augmentSession`                  | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                                        |
+| `logger`                          | Optional logger implementation to log token validation errors, handler setup info entry etc.                                                         |
+| `authorizationUrlRequestOverride` | Optional per request override of the authorisation URL request configuration, allows for things like dynamic authority for multi-tenanted apps, etc. |
 
 ## Detailed usage examples
 
@@ -113,6 +114,8 @@ const authConfig: AuthConfig = {
   },
   // specify a logger
   logger,
+  // specify an authority override
+  authorizationUrlRequestOverride: (req) => ({authority: authorityLookup[req.host]})
 }
 
 // use pkce auth on everything apart from ./api*

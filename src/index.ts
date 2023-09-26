@@ -40,10 +40,11 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
   msalClient: ClientApplication
   authReplyRoute: string
+  authorizationUrlRequestOverride?: (req: Request) => Partial<AuthorizationUrlRequest>
 }
 
-const createEnsureAuthenticatedHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): RequestHandler => {
-  const login = createLoginHandler({ msalClient, scopes, authReplyRoute })
+const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
+  const login = createLoginHandler(input)
   return (req, res, next) => {
     if (!req.session) throw Error('Express session is not available')
     if (!isCookieSession(req.session)) throw Error('Only cookie-session sessions are supported')
@@ -58,7 +59,12 @@ const createReplyUrl = (req: Request, replyRoute: string) => {
   return `${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`
 }
 
-const createLoginHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): RequestHandler => {
+const createLoginHandler = ({
+  msalClient,
+  scopes,
+  authReplyRoute,
+  authorizationUrlRequestOverride: authorizationUrlRequestOverride,
+}: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
   return (req, res) => {
@@ -78,6 +84,7 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): 
           redirectUri: createReplyUrl(req, authReplyRoute),
           codeChallenge: pkceCodes.challenge,
           codeChallengeMethod: pkceCodes.challengeMethod,
+          ...authorizationUrlRequestOverride(req),
         }
       })
       .then((authCodeUrlParameters) => msalClient.getAuthCodeUrl(authCodeUrlParameters))
@@ -159,6 +166,7 @@ export interface AuthConfig {
   authReplyRoute?: string
   augmentSession?: (response: AuthenticationResult) => Record<string, unknown> | undefined
   logger?: Logger
+  authorizationUrlRequestOverride?: (req: Request) => Partial<AuthorizationUrlRequest>
 }
 
 export const pkceAuthenticationMiddleware = ({
@@ -168,8 +176,14 @@ export const pkceAuthenticationMiddleware = ({
   authReplyRoute = '/auth',
   augmentSession,
   logger,
+  authorizationUrlRequestOverride,
 }: AuthConfig): RequestHandler => {
-  const ensureAuthenticated = createEnsureAuthenticatedHandler({ msalClient, scopes, authReplyRoute })
+  const ensureAuthenticated = createEnsureAuthenticatedHandler({
+    msalClient,
+    scopes,
+    authReplyRoute,
+    authorizationUrlRequestOverride,
+  })
 
   app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
   logger?.info(`Auth reply handler added to route ${authReplyRoute}`)
