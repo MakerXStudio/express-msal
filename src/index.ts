@@ -40,7 +40,7 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
   msalClient: ClientApplication
   authReplyRoute: string
-  authorizationUrlRequestOverride?: (req: Request) => Partial<AuthorizationUrlRequest>
+  authorizationUrlRequestOverride?: (req: Request) => Partial<AuthorizationUrlRequest> | Promise<AuthorizationUrlRequest>
 }
 
 const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
@@ -70,7 +70,7 @@ const createLoginHandler = ({
   return (req, res) => {
     cryptoProvider
       .generatePkceCodes()
-      .then(({ verifier, challenge }) => {
+      .then(async ({ verifier, challenge }) => {
         const pkceCodes: PKCECodes = {
           challengeMethod: 'S256',
           verifier,
@@ -78,6 +78,8 @@ const createLoginHandler = ({
         }
 
         req.session = { pkceCodes, originalUrl: `${PROXY_PATH}${req.originalUrl}` } as PKCEStartedSession
+
+        const authorizationUrlRequest = authorizationUrlRequestOverride ? await Promise.resolve(authorizationUrlRequestOverride(req)) : {}
 
         return <AuthorizationUrlRequest>{
           scopes,
