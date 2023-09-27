@@ -61,12 +61,7 @@ const createReplyUrl = (req: Request, replyRoute: string) => {
   return `${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`
 }
 
-const createLoginHandler = ({
-  msalClient,
-  scopes,
-  authReplyRoute,
-  authorizationUrlRequestOverride,
-}: AuthInput): RequestHandler => {
+const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationUrlRequestOverride }: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
   return (req, res) => {
