@@ -37,10 +37,12 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
   return session?.isAuthenticated === true
 }
 
+type AuthorizationUrlRequestOverridable = Partial<Omit<AuthorizationUrlRequest, 'redirectUri' | 'codeChallenge' | 'codeChallengeMethod'>>
+
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
   msalClient: ClientApplication
   authReplyRoute: string
-  authorizationUrlRequestOverride?: (req: Request) => Partial<AuthorizationUrlRequest> | Promise<AuthorizationUrlRequest>
+  authorizationUrlRequestOverride?: (req: Request) => AuthorizationUrlRequestOverridable | Promise<AuthorizationUrlRequestOverridable>
 }
 
 const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
@@ -83,10 +85,10 @@ const createLoginHandler = ({
 
         return <AuthorizationUrlRequest>{
           scopes,
+          ...authorizationUrlRequest,
           redirectUri: createReplyUrl(req, authReplyRoute),
           codeChallenge: pkceCodes.challenge,
           codeChallengeMethod: pkceCodes.challengeMethod,
-          ...authorizationUrlRequestOverride(req),
         }
       })
       .then((authCodeUrlParameters) => msalClient.getAuthCodeUrl(authCodeUrlParameters))
