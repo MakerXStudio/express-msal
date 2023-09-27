@@ -37,12 +37,10 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
   return session?.isAuthenticated === true
 }
 
-type AuthorizationUrlRequestOverridable = Partial<Omit<AuthorizationUrlRequest, 'redirectUri' | 'codeChallenge' | 'codeChallengeMethod'>>
-
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
   msalClient: ClientApplication
   authReplyRoute: string
-  authorizationUrlRequestOverride?: (req: Request) => AuthorizationUrlRequestOverridable | Promise<AuthorizationUrlRequestOverridable>
+  authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride']
 }
 
 const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
@@ -158,6 +156,10 @@ export const copySessionJwtToBearerHeader: RequestHandler = (req, _res, next) =>
   next()
 }
 
+export type AuthorizationUrlRequestOverridable = Partial<
+  Omit<AuthorizationUrlRequest, 'redirectUri' | 'codeChallenge' | 'codeChallengeMethod'>
+>
+
 export interface AuthConfig {
   app: Express
   msalClient: ClientApplication
@@ -165,7 +167,7 @@ export interface AuthConfig {
   authReplyRoute?: string
   augmentSession?: (response: AuthenticationResult) => Record<string, unknown> | undefined
   logger?: Logger
-  authorizationUrlRequestOverride?: (req: Request) => Partial<AuthorizationUrlRequest>
+  authorizationUrlRequestOverride?: (req: Request) => AuthorizationUrlRequestOverridable | Promise<AuthorizationUrlRequestOverridable>
 }
 
 export const pkceAuthenticationMiddleware = ({
