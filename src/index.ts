@@ -40,10 +40,11 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
   msalClient: ClientApplication
   authReplyRoute: string
+  authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride']
 }
 
-const createEnsureAuthenticatedHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): RequestHandler => {
-  const login = createLoginHandler({ msalClient, scopes, authReplyRoute })
+const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
+  const login = createLoginHandler(input)
   return (req, res, next) => {
     if (!req.session) throw Error('Express session is not available')
     if (!isCookieSession(req.session)) throw Error('Only cookie-session sessions are supported')
@@ -58,13 +59,13 @@ const createReplyUrl = (req: Request, replyRoute: string) => {
   return `${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`
 }
 
-const createLoginHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): RequestHandler => {
+const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationUrlRequestOverride }: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
   return (req, res) => {
     cryptoProvider
       .generatePkceCodes()
-      .then(({ verifier, challenge }) => {
+      .then(async ({ verifier, challenge }) => {
         const pkceCodes: PKCECodes = {
           challengeMethod: 'S256',
           verifier,
@@ -73,8 +74,11 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute }: AuthInput): 
 
         req.session = { pkceCodes, originalUrl: `${PROXY_PATH}${req.originalUrl}` } as PKCEStartedSession
 
+        const authorizationUrlRequest = authorizationUrlRequestOverride ? await Promise.resolve(authorizationUrlRequestOverride(req)) : {}
+
         return <AuthorizationUrlRequest>{
           scopes,
+          ...authorizationUrlRequest,
           redirectUri: createReplyUrl(req, authReplyRoute),
           codeChallenge: pkceCodes.challenge,
           codeChallengeMethod: pkceCodes.challengeMethod,
@@ -152,6 +156,10 @@ export const copySessionJwtToBearerHeader: RequestHandler = (req, _res, next) =>
   next()
 }
 
+export type AuthorizationUrlRequestOverridable = Partial<
+  Omit<AuthorizationUrlRequest, 'redirectUri' | 'codeChallenge' | 'codeChallengeMethod'>
+>
+
 export interface AuthConfig {
   app: Express
   msalClient: ClientApplication
@@ -159,6 +167,7 @@ export interface AuthConfig {
   authReplyRoute?: string
   augmentSession?: (response: AuthenticationResult) => Record<string, unknown> | undefined
   logger?: Logger
+  authorizationUrlRequestOverride?: (req: Request) => AuthorizationUrlRequestOverridable | Promise<AuthorizationUrlRequestOverridable>
 }
 
 export const pkceAuthenticationMiddleware = ({
@@ -168,8 +177,14 @@ export const pkceAuthenticationMiddleware = ({
   authReplyRoute = '/auth',
   augmentSession,
   logger,
+  authorizationUrlRequestOverride,
 }: AuthConfig): RequestHandler => {
-  const ensureAuthenticated = createEnsureAuthenticatedHandler({ msalClient, scopes, authReplyRoute })
+  const ensureAuthenticated = createEnsureAuthenticatedHandler({
+    msalClient,
+    scopes,
+    authReplyRoute,
+    authorizationUrlRequestOverride,
+  })
 
   app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
   logger?.info(`Auth reply handler added to route ${authReplyRoute}`)
