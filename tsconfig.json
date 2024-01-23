@@ -1,8 +1,10 @@
 {
-  "extends": "@tsconfig/node16/tsconfig.json",
+  "extends": "@tsconfig/node18/tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
-    "declaration": true
+    "declaration": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node10"
   },
   "include": ["src/**/*.ts"]
 }
