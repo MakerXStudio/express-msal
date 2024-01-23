@@ -55,7 +55,7 @@ const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
 
 const PROXY_PATH = process.env.PROXY_PATH ?? ''
 const createReplyUrl = (req: Request, replyRoute: string) => {
-  const hostAndPort = req.get('Host') ?? ''
+  const hostAndPort = req.hostname ?? ''
   return `${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`
 }
 
