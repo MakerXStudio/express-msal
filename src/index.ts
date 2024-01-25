@@ -56,7 +56,7 @@ const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
 const PROXY_PATH = process.env.PROXY_PATH ?? ''
 const createReplyUrl = (req: Request, replyRoute: string) => {
   // See https://expressjs.com/en/4x/api.html#req.hostname
-  const hostAndPort = req.get('Host') ?? ''
+  const hostAndPort = req.header('Host') ?? ''
   const reverseProxyAwareHost = req.hostname
 
   // Setting hostname does *not* change the port
