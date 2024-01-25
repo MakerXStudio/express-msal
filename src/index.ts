@@ -55,8 +55,16 @@ const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
 
 const PROXY_PATH = process.env.PROXY_PATH ?? ''
 const createReplyUrl = (req: Request, replyRoute: string) => {
-  const hostAndPort = req.hostname ?? ''
-  return `${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`
+  // See https://expressjs.com/en/4x/api.html#req.hostname
+  const hostAndPort = req.header('Host') ?? ''
+  const reverseProxyAwareHost = req.hostname
+
+  // Setting hostname does *not* change the port
+  // See https://nodejs.org/docs/latest-v18.x/api/url.html#urlhostname
+  const url = new URL(`${req.protocol}://${hostAndPort}${PROXY_PATH}${replyRoute}`)
+  url.hostname = reverseProxyAwareHost
+
+  return url.toString()
 }
 
 const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationUrlRequestOverride }: AuthInput): RequestHandler => {
