@@ -159,7 +159,7 @@ export const logout: RequestHandler = (req, res) => {
 
 export const copySessionJwtToBearerHeader: RequestHandler = (req, _res, next) => {
   const session = req.session
-  if (!isAuthenticatedSession(session)) return next()
+  if (!!req.headers.authorization || !isAuthenticatedSession(session)) return next()
   req.headers.authorization = `Bearer ${session.accessToken}`
   next()
 }

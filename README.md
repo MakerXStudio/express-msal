@@ -38,7 +38,7 @@ app.post('/graphql', copySessionJwtToBearerHeader)
 ```
 
 - `pkceAuthenticationMiddleware` starts the PKCE auth flow (redirect) when there is no session, creates a cookie-session containing an accessToken.
-- `copySessionJwtToBearerHeader`: takes the accessToken from the session cookie and adds a Bearer {token} header onto the request, useful for supporting API access from your session-basedd auth
+- `copySessionJwtToBearerHeader`: takes the accessToken from the session cookie and adds a Bearer {token} header onto the request, useful for supporting API access from your session-based auth (will not overwrite existing authorization header on the request).
 
 ## Is this secure?
 
