@@ -38,7 +38,7 @@
     "test:ci": "vitest run --coverage --passWithNoTests --reporter junit --outputFile test-results.xml"
   },
   "peerDependencies": {
-    "@azure/msal-node": ">=1",
+    "@azure/msal-node": ">=4",
     "cookie-session": ">=2",
     "express": ">=4"
   },
