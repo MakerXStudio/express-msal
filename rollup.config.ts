@@ -1,5 +1,6 @@
 import commonjs from '@rollup/plugin-commonjs'
 import typescript from '@rollup/plugin-typescript'
+import { isAbsolute } from 'node:path'
 import type { RollupOptions } from 'rollup'
 
 const config: RollupOptions = {
@@ -26,7 +27,7 @@ const config: RollupOptions = {
     moduleSideEffects: false,
     propertyReadSideEffects: false,
   },
-  external: [/node_modules/],
+  external: (id, importer) => importer !== undefined && !id.startsWith('.') && !isAbsolute(id),
   plugins: [
     typescript({
       tsconfig: 'tsconfig.build.json',
