@@ -12,26 +12,29 @@ For Bearer token authentication, see [@makerxstudio/express-bearer](https://gith
 
 ## Usage
 
+Requires Node >= 20, and peers `@azure/msal-node` >= 4, `express` >= 4, and `cookie-session` >= 2.
+
 ```
-npm install @azure/msal-node express cookie-session @makerxstudio/express-msal
+npm install @azure/msal-node express cookie-session @makerx/express-msal
 ```
 
 ```ts
 import { ConfidentialClientApplication } from '@azure/msal-node'
-import { AuthConfig, pkceAuthenticationMiddleware, copySessionJwtToBearerHeader } from '@makerxstudio/express-msal'
+import { AuthConfig, pkceAuthenticationMiddleware, copySessionJwtToBearerHeader } from '@makerx/express-msal'
 import cookieSession from 'cookie-session'
 
 const app = express()
 app.use(cookieSession(cookieSessionOptions))
 
-const msalApp = new ConfidentialClientApplication(msalConfig)
+const msalClient = new ConfidentialClientApplication(msalConfig)
 const authConfig: AuthConfig = {
   app,
-  msalApp,
+  msalClient,
   scopes: ['profile', 'api://my-api/.default'],
 }
 
-// trigger pkce auth on GET requests (iteractive users accessing UIs)
+// trigger pkce auth on GET requests (interactive users accessing UIs)
+// Note: on Express 5, use a regex or '/*splat' instead of '*'.
 app.get('*', pkceAuthenticationMiddleware(authConfig))
 // set a Bearer {token} auth header on POST request to '/graphql'
 app.post('/graphql', copySessionJwtToBearerHeader)
@@ -74,7 +77,7 @@ app.use(cookieSession(cookieSessionOptions))
 | `app`                             | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                                 |
 | `msalClient`                      | The `@azure/msal-node` `ConfidentialClientApplication` instance.                                                                                     |
 | `scopes`                          | The scopes to use to aquire the accessToken.                                                                                                         |
-| `authReplyRoute`                  | The route on which the auth completion handler is be set up, which must be configured in the Azure App Registration, default: `/auth`.               |
+| `authReplyRoute`                  | The route on which the auth completion handler is set up, which must be configured in the Azure App Registration, default: `/auth`.                  |
 | `augmentSession`                  | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                                        |
 | `logger`                          | Optional logger implementation to log token validation errors, handler setup info entry etc.                                                         |
 | `authorizationUrlRequestOverride` | Optional per request override of the authorisation URL request configuration, allows for things like dynamic authority for multi-tenanted apps, etc. |
@@ -93,10 +96,10 @@ const cookieSessionOptions = {
 app.use(cookieSession(cookieSessionOptions))
 
 // set up msal client
-const msalApp = new ConfidentialClientApplication({
+const msalClient = new ConfidentialClientApplication({
   auth: {
     clientId: '<client-ID>',
-    clientSecret: '<client-secret>'
+    clientSecret: '<client-secret>',
     authority: 'https://login.microsoftonline.com/<tenant-ID>',
   },
 })
@@ -104,10 +107,10 @@ const msalApp = new ConfidentialClientApplication({
 // configure all config options
 const authConfig: AuthConfig = {
   app,
-  msalApp,
+  msalClient,
   scopes: ['profile', 'api://my-api/.default'],
-  // specify non-default reply url
-  replyUrl: '/auth-callback',
+  // specify non-default reply route
+  authReplyRoute: '/auth-callback',
   // add some additional info to the session from the msal `AuthenticationResult`
   augmentSession: (response) => {
     return { username: response.account?.username }
@@ -115,7 +118,7 @@ const authConfig: AuthConfig = {
   // specify a logger
   logger,
   // specify an authority override
-  authorizationUrlRequestOverride: (req) => ({authority: authorityLookup[req.host]})
+  authorizationUrlRequestOverride: (req) => ({ authority: authorityLookup[req.host] }),
 }
 
 // use pkce auth on everything apart from ./api*
@@ -127,7 +130,7 @@ app.use('/api*', copySessionJwtToBearerHeader)
 // add a logout endpoint for GET requests to /logout
 app.get('/logout', logout)
 
-// return the currently logger in user's username from GET requests to /user
+// return the currently logged in user's username from GET requests to /user
 app.get('/user', (req, res) => {
   if (!isAuthenticatedSession(req.session)) return res.status(400).send('Not logged in').end()
   res.send(req.session.username).end()
@@ -154,11 +157,11 @@ The following example uses console logging:
 
 ```ts
 const logger: Logger = {
-  error: (message: string, ...params: unknown[]) => console.error
-  warn: (message: string, ...params: unknown[]) => console.warn
-  info: (message: string, ...params: unknown[]) => console.info
-  verbose: (message: string, ...params: unknown[]) => console.trace
-  debug: (message: string, ...params: unknown[]) => console.debug
+  error: (message: string, ...params: unknown[]) => console.error(message, ...params),
+  warn: (message: string, ...params: unknown[]) => console.warn(message, ...params),
+  info: (message: string, ...params: unknown[]) => console.info(message, ...params),
+  verbose: (message: string, ...params: unknown[]) => console.trace(message, ...params),
+  debug: (message: string, ...params: unknown[]) => console.debug(message, ...params),
 }
 
 const pkceAuthConfig: AuthConfig = {

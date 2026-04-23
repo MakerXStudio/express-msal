@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "check-types",
+      "problemMatcher": ["$tsc"],
+      "label": "npm: check-types",
+      "detail": "tsc -p tsconfig.json"
+    },
+    {
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$eslint-stylish"],
+      "label": "npm: lint",
+      "detail": "eslint \"src/**/*.ts\""
+    },
+    {
+      "type": "npm",
+      "script": "lint:fix",
+      "problemMatcher": ["$eslint-stylish"],
+      "label": "npm: lint:fix",
+      "detail": "eslint \"src/**/*.ts\" --fix"
+    }
+  ]
+}
