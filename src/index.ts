@@ -2,12 +2,12 @@ import {
   AuthenticationResult,
   AuthorizationCodeRequest,
   AuthorizationUrlRequest,
-  ClientApplication,
+  IConfidentialClientApplication,
   Configuration,
   CryptoProvider,
   LogLevel,
 } from '@azure/msal-node'
-import { Logger } from '@makerx/node-common'
+import { type Logger } from '@makerx/node-common'
 import { Express, Request, RequestHandler } from 'express'
 
 // implementation based on the official pkce sample:
@@ -38,7 +38,7 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
 }
 
 type AuthInput = Pick<AuthConfig, 'scopes'> & {
-  msalClient: ClientApplication
+  msalClient: IConfidentialClientApplication
   authReplyRoute: string
   authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride']
 }
@@ -101,7 +101,7 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationU
 }
 
 type CreateAuthHandlerInput = Pick<AuthConfig, 'scopes' | 'logger' | 'augmentSession'> & {
-  msalClient: ClientApplication
+  msalClient: IConfidentialClientApplication
   authReplyRoute: string
 }
 
@@ -124,7 +124,7 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
 
     msalClient
       .acquireTokenByCode(tokenRequest)
-      .then((response) => {
+      .then((response: AuthenticationResult | null) => {
         if (!response) {
           logger?.error('acquireTokenByCode did not return a response')
           return res.status(500).send('acquireTokenByCode did not return a response').end()
@@ -170,7 +170,7 @@ export type AuthorizationUrlRequestOverridable = Partial<
 
 export interface AuthConfig {
   app: Express
-  msalClient: ClientApplication
+  msalClient: IConfidentialClientApplication
   scopes: string[]
   authReplyRoute?: string
   augmentSession?: (response: AuthenticationResult) => Record<string, unknown> | undefined

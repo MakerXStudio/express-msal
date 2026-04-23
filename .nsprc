@@ -1,2 +1,5 @@
 {
+  "GHSA-w5hq-g745-h8pq": {
+    "notes": "The advisory is about missing buffer bounds checks in uuid.v3(), uuid.v5(), and uuid.v6() when you pass your own buf argument. @azure/msal-node uses uuid only for correlation IDs and similar identifiers — i.e. uuid.v4() with no buffer arg. That code path is not affected."
+  }
 }

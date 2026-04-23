@@ -1,14 +1,16 @@
 {
   "name": "@makerx/express-msal",
-  "version": "1.4.0",
+  "version": "2.0.0-beta.0",
   "private": false,
-  "description": "",
+  "description": "An express middleware for Microsoft Authentication Library for Node (MSAL Node).",
   "author": "MakerX",
   "license": "MIT",
-  "main": "index.js",
+  "type": "module",
+  "module": "index.mjs",
   "types": "index.d.ts",
+  "main": "index.cjs",
   "engines": {
-    "node": ">=18.0"
+    "node": ">=20"
   },
   "bugs": {
     "url": "https://github.com/MakerXStudio/express-msal/issues"
@@ -19,46 +21,57 @@
     "url": "git+https://github.com/MakerXStudio/express-msal.git"
   },
   "scripts": {
+    "audit": "better-npm-audit audit",
+    "format": "prettier --write .",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "check-types": "tsc -p tsconfig.json",
     "build": "run-s build:*",
     "build:0-clean": "rimraf dist coverage",
-    "build:1-compile": "tsc -p tsconfig.build.json",
-    "build:2-copy-pkg-json": "npx --yes @makerx/ts-toolkit copy-package-json",
-    "build:3-copy-readme": "copyfiles README.md dist",
-    "test": "jest --coverage --passWithNoTests",
-    "lint": "eslint ./src/ --ext .ts",
-    "lint:fix": "eslint ./src/ --ext .ts --fix",
-    "audit": "better-npm-audit audit"
+    "build:1-lint": "eslint \"src/**/*.ts\" --max-warnings 0",
+    "build:2-check-types": "tsc -p tsconfig.json",
+    "build:3-build": "rollup -c --configPlugin typescript",
+    "build:4-copy-pkg-json": "tstk copy-package-json -c",
+    "build:5-copy-readme": "copyfiles ./README.md ./dist",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests",
+    "test:ci": "vitest run --coverage --passWithNoTests --reporter junit --outputFile test-results.xml"
   },
   "peerDependencies": {
-    "@azure/msal-node": "1 || 2 || 3",
-    "cookie-session": "2",
-    "express": "*"
+    "@azure/msal-node": ">=1",
+    "cookie-session": ">=2",
+    "express": ">=4"
   },
   "devDependencies": {
-    "@tsconfig/node18": "^18.2.2",
-    "@types/cookie-session": "^2.0.48",
-    "@types/express": "^4.17.21",
-    "@types/jest": "^29.5.11",
-    "@typescript-eslint/eslint-plugin": "^6.19.1",
-    "@typescript-eslint/parser": "^6.19.1",
-    "better-npm-audit": "^3.7.3",
+    "@eslint/eslintrc": "3.3.5",
+    "@eslint/js": "9.39.4",
+    "@makerx/eslint-config": "4.2.0",
+    "@makerx/node-common": "^1.5.0",
+    "@makerx/prettier-config": "2.0.1",
+    "@makerx/ts-toolkit": "^4.0.0-beta.24",
+    "@rollup/plugin-commonjs": "29.0.2",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@tsconfig/node20": "20.1.9",
+    "@types/cookie-session": "^2.0.49",
+    "@types/express": "^5.0.6",
+    "@types/node": "25.6.0",
+    "@typescript-eslint/eslint-plugin": "8.59.0",
+    "@typescript-eslint/parser": "8.59.0",
+    "@vitest/coverage-v8": "4.1.5",
+    "better-npm-audit": "^3.11.0",
     "copyfiles": "^2.4.1",
-    "eslint": "8.50.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint": "9.39.4",
+    "eslint-config-prettier": "^9.1.2",
     "eslint-plugin-node": "^11.1.0",
-    "eslint-plugin-prettier": "^5.1.3",
-    "express": "^4.21.2",
+    "eslint-plugin-prettier": "^5.5.5",
+    "express": "^5.2.1",
     "npm-run-all": "^4.1.5",
-    "prettier": "^3.2.4",
-    "rimraf": "^5.0.5",
-    "ts-jest": "^29.1.2",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.3.3"
-  },
-  "overrides": {
-    "jsonwebtoken": "^9.0.0"
-  },
-  "dependencies": {
-    "@makerx/node-common": "^1.3.0"
+    "prettier": "3.8.3",
+    "rimraf": "^6.1.3",
+    "rollup": "4.60.2",
+    "tslib": "^2.8.1",
+    "tsx": "4.21.0",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.5"
   }
 }
