@@ -33,6 +33,7 @@
     "build:3-build": "rollup -c --configPlugin typescript",
     "build:4-copy-pkg-json": "tstk copy-package-json -c",
     "build:5-copy-readme": "copyfiles ./README.md ./dist",
+    "build:6-check-exports": "attw --pack dist",
     "test": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:ci": "vitest run --coverage --passWithNoTests --reporter junit --outputFile test-results.xml"
@@ -43,6 +44,7 @@
     "express": ">=4"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.2",
     "@eslint/eslintrc": "3.3.5",
     "@eslint/js": "9.39.4",
     "@makerx/eslint-config": "4.2.0",
