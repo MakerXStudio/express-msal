@@ -20,4 +20,3 @@ jobs:
     uses: makerxstudio/shared-config/.github/workflows/node-trusted-publish.yml@main
     with:
       access: public
-      tag: beta
