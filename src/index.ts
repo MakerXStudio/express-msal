@@ -114,6 +114,12 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
       pkceCodes: { verifier },
     } = req.session
 
+    if (req.query.error) {
+      const details = { error: req.query.error, error_description: req.query.error_description }
+      logger?.error('Error returned in auth reply query parameters', details)
+      throw new Error(req.query.error as string, { cause: details })
+    }
+
     const tokenRequest: AuthorizationCodeRequest = {
       code: req.query.code as string,
       scopes,
