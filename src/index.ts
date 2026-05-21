@@ -115,8 +115,9 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
     } = req.session
 
     if (req.query.error) {
-      logger?.error('Error returned in auth reply query parameters', { error: req.query.error, query: req.query })
-      throw new Error(req.query.error as string, { cause: req.query })
+      const details = { error: req.query.error, error_description: req.query.error_description }
+      logger?.error('Error returned in auth reply query parameters', details)
+      throw new Error(req.query.error as string, { cause: details })
     }
 
     const tokenRequest: AuthorizationCodeRequest = {
