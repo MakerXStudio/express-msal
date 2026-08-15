@@ -166,9 +166,28 @@ export const logout: RequestHandler = (req, res) => {
   res.send('🙋🏽‍♀️').end()
 }
 
+// decode the JWT exp claim (no verification — that's the resource server's job);
+// unparsable tokens pass through so downstream bearer verification decides
+const sessionJwtIsExpired = ({ accessToken }: AuthenticatedSession): boolean => {
+  try {
+    const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString()) as { exp?: unknown }
+    return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()
+  } catch {
+    return false
+  }
+}
+
 export const copySessionJwtToBearerHeader: RequestHandler = (req, _res, next) => {
   const session = req.session
   if (!!req.headers.authorization || !isAuthenticatedSession(session)) return next()
+  // the session cookie can outlive the access token it carries — an expired token would fail
+  // bearer verification downstream while its presence in the authorization header suppresses
+  // interactive re-login, wedging the browser on 401s until the cookie expires. Drop the
+  // session instead so the login middleware re-runs.
+  if (sessionJwtIsExpired(session)) {
+    req.session = null
+    return next()
+  }
   req.headers.authorization = `Bearer ${session.accessToken}`
   next()
 }
