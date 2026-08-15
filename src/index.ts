@@ -37,7 +37,7 @@ export const isAuthenticatedSession = (session: MaybeSession): session is Authen
   return session?.isAuthenticated === true
 }
 
-type AuthInput = Pick<AuthConfig, 'scopes'> & {
+type AuthInput = Pick<AuthConfig, 'scopes' | 'logger'> & {
   msalClient: IConfidentialClientApplication
   authReplyRoute: string
   authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride']
@@ -67,7 +67,7 @@ const createReplyUrl = (req: Request, replyRoute: string) => {
   return url.toString()
 }
 
-const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationUrlRequestOverride }: AuthInput): RequestHandler => {
+const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationUrlRequestOverride, logger }: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
   return (req, res) => {
@@ -95,7 +95,10 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationU
       .then((authCodeUrlParameters) => msalClient.getAuthCodeUrl(authCodeUrlParameters))
       .then((response) => res.redirect(response))
       .catch((error: unknown) => {
-        throw error
+        // rethrowing inside a terminal .catch becomes an unhandled promise rejection, which kills
+        // the process — respond 500 instead, matching createAuthHandler's error handling
+        logger?.error('Failed to initiate interactive login', { error })
+        if (!res.headersSent) res.status(500).send('Failed to initiate login').end()
       })
   }
 }
@@ -198,6 +201,7 @@ export const pkceAuthenticationMiddleware = ({
     scopes,
     authReplyRoute,
     authorizationUrlRequestOverride,
+    logger,
   })
 
   app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
