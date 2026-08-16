@@ -1,5 +1,5 @@
 {
-  "GHSA-w5hq-g745-h8pq": {
-    "notes": "The advisory is about missing buffer bounds checks in uuid.v3(), uuid.v5(), and uuid.v6() when you pass your own buf argument. @azure/msal-node uses uuid only for correlation IDs and similar identifiers — i.e. uuid.v4() with no buffer arg. That code path is not affected."
+  "GHSA-g7r4-m6w7-qqqr": {
+    "notes": "The advisory is about esbuild's development server allowing arbitrary file reads on Windows. esbuild is a transitive devDependency here (via tsx and vitest) used only as a build/test transform — its development server is never run, and nothing ships to consumers. Remove this exception once tsx/vite pick up esbuild >=0.28.1."
   }
 }
