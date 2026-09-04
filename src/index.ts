@@ -25,8 +25,8 @@ type PKCEStartedSession = Session & { originalUrl: string; pkceCodes: PKCECodes;
 export type AuthenticatedSession = Session & {
   isAuthenticated: true
   accessToken: string
-  // the authority this session signed in at, when the login was steered by an override. Compared on
-  // every later request by copySessionJwtToBearerHeader — see createCopySessionJwtToBearerHeader.
+  // the authority the login used, where an override named one. createCopySessionJwtToBearerHeader
+  // compares it against each later request.
   authority?: string
 }
 
@@ -158,8 +158,7 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
 
         if (augmentSession) session = { ...session, ...augmentSession(response) }
 
-        // after augmentSession, so the library's own value wins: the copy middleware compares it to
-        // decide whether this session may still stand in for an interactive sign-in
+        // after augmentSession, so an app cannot displace the value the copy middleware compares
         if (authority) session = { ...session, authority }
 
         req.session = session
@@ -193,10 +192,10 @@ const sessionJwtIsExpired = ({ accessToken }: AuthenticatedSession): boolean => 
   }
 }
 
-// an empty session, and never null. `req.session = null` tells cookie-session to unset the session,
-// and its getter then answers null — which makes createEnsureAuthenticatedHandler throw
-// 'Express session is not available' instead of starting the sign-in this drop exists to cause.
-// An empty session drops the token just as well and leaves a session object to read.
+// An empty session, never null. `req.session = null` tells cookie-session to unset the session and
+// its getter then answers null, so an app that mounts this ahead of the interactive middleware gets
+// 'Express session is not available' thrown at it rather than the sign-in the drop exists to cause.
+// An empty session drops the token just as well and leaves an object to read.
 const dropSession = (req: Request) => {
   req.session = {}
 }
@@ -204,20 +203,22 @@ const dropSession = (req: Request) => {
 export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOverride' | 'logger'>
 
 /**
- * The middleware that decides whether a session's token may stand in for an interactive sign-in,
- * and drops the session where it may not, so the login middleware re-runs on the same request.
+ * Copies an authenticated session's token to the authorization header, or drops the session where
+ * that token must not be used — leaving no header, so an interactive middleware mounted after this
+ * one signs the visitor in again.
  *
- * Two reasons it may not. **The token has expired** — the session cookie can outlive it, and an
- * expired token would fail bearer verification downstream while its presence in the authorization
- * header suppresses re-login, wedging the browser on 401s until the cookie expires. **The request
- * would sign in somewhere else** — `authorizationUrlRequestOverride` names the authority a login
- * starts at, so an app that varies it per request (a tenant on the URL, say) has sessions that
- * belong to one authority and requests that ask for another. Without this the session passes
- * straight through and the override never runs, so such a request is a no-op for anyone already
- * signed in — which is most people following a link.
+ * **An expired token.** The session cookie can outlive it. Copied, it fails bearer verification
+ * downstream while its presence suppresses interactive re-login, wedging the browser on 401s until
+ * the cookie expires.
  *
- * The override is resolved on requests that reach here holding an authority, so keep it cheap. An
- * app that passes no override, or a session from before this release, takes neither branch.
+ * **A request that would sign in elsewhere.** `authorizationUrlRequestOverride` names the authority
+ * a login starts at, so an app that varies it per request holds sessions belonging to one authority
+ * and serves requests asking for another. Uncompared, the session passes through and the override
+ * never runs, so the request does nothing for anyone already signed in.
+ *
+ * The override is resolved on every request reaching here with an authority on its session, so keep
+ * it cheap. Passing none leaves the expiry drop and nothing else, as does a session written before
+ * the authority was recorded.
  */
 export const createCopySessionJwtToBearerHeader = ({
   authorizationUrlRequestOverride,
@@ -255,9 +256,8 @@ export const createCopySessionJwtToBearerHeader = ({
         next()
       })
       .catch((error: unknown) => {
-        // the override is the app's own, and one that throws already fails every login with a 500.
-        // Copying is what this middleware did before the check existed, so a broken override is no
-        // worse here than it was.
+        // an override that throws already fails every login with a 500, and copying is what this
+        // middleware did before the check existed — so a broken one is no worse here than it was
         logger?.error('Failed to resolve the authorization URL request override', { error })
         copy()
       })

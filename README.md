@@ -90,17 +90,20 @@ Only return an authority your app derived itself. An authority taken straight fr
 
 ### Sessions that would sign in somewhere else
 
-`copySessionJwtToBearerHeader` copies a session's token to the authorization header, which is how a signed-in browser reaches routes the interactive middleware guards — and, because that middleware skips any request already carrying the header, it is also what decides whether a session may stand in for a fresh sign-in. It drops the session instead of copying where it may not, so login re-runs on the same request.
+`copySessionJwtToBearerHeader` copies a session's token to the authorization header, and drops the session instead where that token must not be used — leaving no header, so an interactive middleware mounted after it signs the visitor in again. An expired token has always been one such case.
 
-An app whose `authorizationUrlRequestOverride` varies the authority per request has a second reason to drop one: the session belongs to the authority it signed in at, and this request may ask for another. Pass the override to get that check:
+An app whose `authorizationUrlRequestOverride` varies the authority per request has a second: the session belongs to the authority it signed in at, and this request may ask for another. Pass the override to get that check.
 
 ```ts
+const ensureAuthenticated = pkceAuthenticationMiddleware(authConfig)
+
 app.use(createCopySessionJwtToBearerHeader({ authorizationUrlRequestOverride, logger }))
+app.get('/*splat', (req, res, next) => (req.headers.authorization ? next() : ensureAuthenticated(req, res, next)))
 ```
 
-The authority the login used is carried on the session, and each later request is compared against what the override returns for it. Without this the session passes straight through and the override never runs, so a URL naming another tenant is a no-op for anyone already signed in — which is most people following a link.
+The authority the login used is carried on the session and compared against what the override returns for each later request. Uncompared, the session passes straight through and the override never runs, so a URL naming another tenant does nothing for anyone already signed in — which is most people following a link.
 
-The override is resolved on requests that reach this middleware holding an authority, so keep it cheap. `copySessionJwtToBearerHeader` is the same middleware with no override: the expiry drop and nothing more.
+The override is resolved on every request reaching this middleware with an authority on its session, so keep it cheap. `copySessionJwtToBearerHeader` is the same middleware with no override: the expiry drop and nothing more.
 
 ## Detailed usage examples
 
