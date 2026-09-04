@@ -21,7 +21,7 @@ interface PKCECodes {
 
 export type Session = Record<string, unknown>
 type MaybeSession = Record<string, unknown> | null | undefined
-type PKCEStartedSession = Session & { originalUrl: string; pkceCodes: PKCECodes }
+type PKCEStartedSession = Session & { originalUrl: string; pkceCodes: PKCECodes; authority?: string }
 export type AuthenticatedSession = Session & {
   isAuthenticated: true
   accessToken: string
@@ -80,9 +80,14 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationU
           challenge,
         }
 
-        req.session = { pkceCodes, originalUrl: `${PROXY_PATH}${req.originalUrl}` } as PKCEStartedSession
-
         const authorizationUrlRequest = authorizationUrlRequestOverride ? await Promise.resolve(authorizationUrlRequestOverride(req)) : {}
+
+        req.session = {
+          pkceCodes,
+          originalUrl: `${PROXY_PATH}${req.originalUrl}`,
+          // carry it so the reply leg can redeem the code at the authority it was minted at
+          ...(authorizationUrlRequest.authority ? { authority: authorizationUrlRequest.authority } : {}),
+        } as PKCEStartedSession
 
         return <AuthorizationUrlRequest>{
           scopes,
@@ -114,6 +119,7 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
 
     const {
       originalUrl,
+      authority,
       pkceCodes: { verifier },
     } = req.session
 
@@ -129,6 +135,9 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
       redirectUri: createReplyUrl(req, authReplyRoute),
       codeVerifier: verifier,
       clientInfo: req.query.client_info as string,
+      // redeeming where the code was minted frees the client's own authority from having to
+      // cover every tenant a sign-in can start in
+      ...(authority ? { authority } : {}),
     }
 
     msalClient
