@@ -192,12 +192,24 @@ const sessionJwtIsExpired = ({ accessToken }: AuthenticatedSession): boolean => 
   }
 }
 
-// An empty session, never null. `req.session = null` tells cookie-session to unset the session and
-// its getter then answers null, so an app that mounts this ahead of the interactive middleware gets
-// 'Express session is not available' thrown at it rather than the sign-in the drop exists to cause.
-// An empty session drops the token just as well and leaves an object to read.
-const dropSession = (req: Request) => {
-  req.session = {}
+// Emptied in place: neither `req.session = null` nor a fresh object, both of which get one half of
+// this right and the other wrong.
+//
+// `null` tells cookie-session to unset the session, so the cookie is removed — but its getter then
+// answers null, and an app that mounts this ahead of the interactive middleware gets 'Express
+// session is not available' thrown at it rather than the sign-in the drop exists to cause.
+//
+// A fresh `{}` leaves an object to read, but cookie-session saves a session only when it is
+// populated or was read from a cookie, *and* has changed. A new empty object is neither populated
+// nor read from a cookie, so it is not saved and not removed: the stale cookie comes back on the
+// next request.
+//
+// Deleting the keys of the session already read does both. It is unauthenticated for the rest of
+// this request, and cookie-session sees a session it read from a cookie and saw change, so it
+// writes the emptied session back — an empty cookie rather than none, which the next request reads
+// as unauthenticated and signs in again.
+const dropSession = (session: AuthenticatedSession) => {
+  for (const key of Object.keys(session)) delete session[key]
 }
 
 export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOverride' | 'logger'>
@@ -230,7 +242,7 @@ export const createCopySessionJwtToBearerHeader = ({
 
     if (sessionJwtIsExpired(session)) {
       logger?.verbose('Dropping the session: its access token has expired')
-      dropSession(req)
+      dropSession(session)
       return next()
     }
 
@@ -252,7 +264,7 @@ export const createCopySessionJwtToBearerHeader = ({
           sessionAuthority: session.authority,
           requestAuthority: authority,
         })
-        dropSession(req)
+        dropSession(session)
         next()
       })
       .catch((error: unknown) => {

@@ -24,13 +24,16 @@ describe('copySessionJwtToBearerHeader', () => {
   })
 
   it('drops the session and copies nothing when the token has expired', () => {
-    const req = run({ isAuthenticated: true, accessToken: jwtWithExp(secondsFromNow(-60)) })
+    const session = { isAuthenticated: true, accessToken: jwtWithExp(secondsFromNow(-60)) }
+    const req = run(session)
+
     expect(req.headers.authorization).toBeUndefined()
-    // an empty session, and never null: `req.session = null` tells cookie-session to unset the
-    // session and its getter then answers null, which makes the login middleware throw
-    // 'Express session is not available' instead of starting the sign-in this drop exists to cause
+    // the same object, emptied. Not null, whose getter answers null and makes the login middleware
+    // throw 'Express session is not available' instead of starting the sign-in this drop exists to
+    // cause; and not a replacement, which cookie-session takes for new-and-unpopulated and so
+    // neither saves nor removes, leaving the stale cookie to come back on the next request
+    expect(req.session).toBe(session)
     expect(req.session).toEqual({})
-    expect(req.session).not.toBeNull()
   })
 
   it('passes an unparsable token through for downstream bearer verification to reject', () => {
@@ -73,9 +76,12 @@ describe('createCopySessionJwtToBearerHeader, against an override', () => {
   it('drops a session that signed in at another authority, so the login middleware re-runs', async () => {
     // without this the session passes straight through, the override never runs, and a request
     // asking for another authority is a no-op for anyone already signed in
-    const req = await runWithOverride(signedInAt(AUTHORITY), () => ({ authority: OTHER_AUTHORITY }))
+    const session = signedInAt(AUTHORITY)
+    const req = await runWithOverride(session, () => ({ authority: OTHER_AUTHORITY }))
 
     expect(req.headers.authorization).toBeUndefined()
+    // emptied in place, for the reason the expiry drop above gives
+    expect(req.session).toBe(session)
     expect(req.session).toEqual({})
   })
 
@@ -89,6 +95,15 @@ describe('createCopySessionJwtToBearerHeader, against an override', () => {
   it('awaits an override that answers asynchronously', async () => {
     const req = await runWithOverride(signedInAt(AUTHORITY), () => Promise.resolve({ authority: OTHER_AUTHORITY }))
 
+    expect(req.session).toEqual({})
+  })
+
+  it('empties an expired session in place even when an override is configured', async () => {
+    const session = signedInAt(AUTHORITY)
+    session.accessToken = jwtWithExp(secondsFromNow(-60))
+    const req = await runWithOverride(session, () => ({ authority: AUTHORITY }))
+
+    expect(req.session).toBe(session)
     expect(req.session).toEqual({})
   })
 
@@ -124,6 +139,7 @@ describe('createCopySessionJwtToBearerHeader, against an override', () => {
     )
 
     expect(req.session).toEqual({})
+
     expect(authorizationUrlRequestOverride).not.toHaveBeenCalled()
   })
 })
