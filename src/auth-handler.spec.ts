@@ -3,9 +3,13 @@ import { Express, NextFunction, Request, RequestHandler, Response } from 'expres
 import { describe, expect, it, vi } from 'vitest'
 import { pkceAuthenticationMiddleware } from './index'
 
-const createRequest = (session: Record<string, unknown>): Request =>
+const createRequest = (authority?: string): Request =>
   ({
-    session,
+    session: {
+      originalUrl: '/some/page',
+      pkceCodes: { challengeMethod: 'S256', verifier: 'the-verifier' },
+      ...(authority ? { authority } : {}),
+    },
     query: { code: 'auth-code' },
     protocol: 'https',
     hostname: 'api.example.com',
@@ -22,49 +26,40 @@ const createResponse = (): Response =>
     end: vi.fn(),
   }) as unknown as Response
 
-const pkceStartedSession = (authority?: string) => ({
-  originalUrl: '/some/page',
-  pkceCodes: { challengeMethod: 'S256', verifier: 'the-verifier' },
-  ...(authority ? { authority } : {}),
-})
-
-// the reply handler is not exported — reach it via the app.get registration pkceAuthenticationMiddleware makes
-const createAuthHandler = (msalClient: IConfidentialClientApplication) => {
+// the reply handler is not exported — reach it via the app.get registration pkceAuthenticationMiddleware makes,
+// then run it against a session the login handler would have written
+const reply = async (authority?: string) => {
+  const msalClient = {
+    acquireTokenByCode: vi.fn().mockResolvedValue({ accessToken: 'an-access-token' }),
+  } as unknown as IConfidentialClientApplication
   const get = vi.fn()
+  const res = createResponse()
+
   pkceAuthenticationMiddleware({
     app: { get } as unknown as Express,
     msalClient,
     scopes: ['openid'],
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), verbose: vi.fn(), debug: vi.fn() },
   })
-  return get.mock.calls[0][1] as RequestHandler
-}
+  const authHandler = get.mock.calls[0][1] as RequestHandler
+  authHandler(createRequest(authority), res, vi.fn() as NextFunction)
 
-const createTokenClient = () =>
-  ({
-    acquireTokenByCode: vi.fn().mockResolvedValue({ accessToken: 'an-access-token' }),
-  }) as unknown as IConfidentialClientApplication
+  await vi.waitFor(() => expect(res.redirect).toHaveBeenCalledWith('/some/page'))
+  return msalClient
+}
 
 describe('auth handler', () => {
   it('redeems the code at the authority the session carries', async () => {
     const authority = 'https://login.microsoftonline.com/11111111-1111-1111-1111-111111111111'
-    const msalClient = createTokenClient()
-    const res = createResponse()
+    const msalClient = await reply(authority)
 
-    createAuthHandler(msalClient)(createRequest(pkceStartedSession(authority)), res, vi.fn() as NextFunction)
-
-    await vi.waitFor(() => expect(res.redirect).toHaveBeenCalledWith('/some/page'))
     expect(msalClient.acquireTokenByCode).toHaveBeenCalledWith(expect.objectContaining({ authority }))
   })
 
   it('leaves the client authority in force when the session carries none', async () => {
-    const msalClient = createTokenClient()
-    const res = createResponse()
+    const msalClient = await reply()
 
-    createAuthHandler(msalClient)(createRequest(pkceStartedSession()), res, vi.fn() as NextFunction)
-
-    await vi.waitFor(() => expect(res.redirect).toHaveBeenCalledWith('/some/page'))
-    // a session written by an earlier version has no authority — the request must look exactly as it did then
+    // a session written by 2.1.0 has no authority, so the token request must look exactly as it did then
     expect(msalClient.acquireTokenByCode).toHaveBeenCalledWith(expect.not.objectContaining({ authority: expect.anything() }))
   })
 })

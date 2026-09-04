@@ -82,14 +82,11 @@ app.use(cookieSession(cookieSessionOptions))
 | `logger`                          | Optional logger implementation to log token validation errors, handler setup info entry etc.                                                         |
 | `authorizationUrlRequestOverride` | Optional per request override of the authorisation URL request configuration, allows for things like dynamic authority for multi-tenanted apps, etc. |
 
-If `authorizationUrlRequestOverride` returns an `authority`, it is carried on the PKCE session and reused to redeem the
-authorization code. Entra binds a token's `tid` to the authority the code was _minted_ at, so both legs of the sign-in
-must name the same one. Without this the code is redeemed at the confidential client's own configured authority, which
-forces a multi-tenanted app to use a tenant-agnostic client authority such as `/organizations` — something a
-single-tenant app registration (`signInAudience: AzureADMyOrg`) rejects with `AADSTS50194`.
+If `authorizationUrlRequestOverride` returns an `authority`, it is carried on the PKCE session and reused to redeem the authorization code, so both legs of the sign-in use the same authority.
 
-Only return an authority your app derived itself. An authority taken straight from a query parameter would let a
-crafted link aim a sign-in at any path under `login.microsoftonline.com`.
+Otherwise the code is redeemed at the confidential client's own configured authority. That works only where the client authority also covers the tenant the sign-in started in, which is why a multi-tenanted app has had to set its client authority to `/organizations` — something a single-tenant app registration (`signInAudience: AzureADMyOrg`) rejects with `AADSTS50194`. Returning an authority lets the client stay pinned to its own tenant while sign-ins start in others.
+
+Only return an authority your app derived itself. An authority taken straight from a query parameter would let a crafted link aim a sign-in at any path under `login.microsoftonline.com`.
 
 ## Detailed usage examples
 

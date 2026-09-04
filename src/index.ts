@@ -85,7 +85,7 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationU
         req.session = {
           pkceCodes,
           originalUrl: `${PROXY_PATH}${req.originalUrl}`,
-          // the code is minted at this authority, so it is also where it must be redeemed
+          // carry it so the reply leg can redeem the code at the authority it was minted at
           ...(authorizationUrlRequest.authority ? { authority: authorizationUrlRequest.authority } : {}),
         } as PKCEStartedSession
 
@@ -135,7 +135,8 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
       redirectUri: createReplyUrl(req, authReplyRoute),
       codeVerifier: verifier,
       clientInfo: req.query.client_info as string,
-      // redeem at the authority the code was minted at, not the client's own
+      // redeeming where the code was minted frees the client's own authority from having to
+      // cover every tenant a sign-in can start in
       ...(authority ? { authority } : {}),
     }
 
