@@ -25,6 +25,9 @@ type PKCEStartedSession = Session & { originalUrl: string; pkceCodes: PKCECodes;
 export type AuthenticatedSession = Session & {
   isAuthenticated: true
   accessToken: string
+  // the authority the login used, where an override named one. createCopySessionJwtToBearerHeader
+  // compares it against each later request.
+  authority?: string
 }
 
 const isCookieSession = (session: Session) => {
@@ -155,6 +158,9 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
 
         if (augmentSession) session = { ...session, ...augmentSession(response) }
 
+        // after augmentSession, so an app cannot displace the value the copy middleware compares
+        if (authority) session = { ...session, authority }
+
         req.session = session
         res.redirect(originalUrl)
 
@@ -186,20 +192,92 @@ const sessionJwtIsExpired = ({ accessToken }: AuthenticatedSession): boolean => 
   }
 }
 
-export const copySessionJwtToBearerHeader: RequestHandler = (req, _res, next) => {
-  const session = req.session
-  if (!!req.headers.authorization || !isAuthenticatedSession(session)) return next()
-  // the session cookie can outlive the access token it carries — an expired token would fail
-  // bearer verification downstream while its presence in the authorization header suppresses
-  // interactive re-login, wedging the browser on 401s until the cookie expires. Drop the
-  // session instead so the login middleware re-runs.
-  if (sessionJwtIsExpired(session)) {
-    req.session = null
-    return next()
-  }
-  req.headers.authorization = `Bearer ${session.accessToken}`
-  next()
+// Emptied in place: neither `req.session = null` nor a fresh object, both of which get one half of
+// this right and the other wrong.
+//
+// `null` tells cookie-session to unset the session, so the cookie is removed — but its getter then
+// answers null, and an app that mounts this ahead of the interactive middleware gets 'Express
+// session is not available' thrown at it rather than the sign-in the drop exists to cause.
+//
+// A fresh `{}` leaves an object to read, but cookie-session saves a session only when it is
+// populated or was read from a cookie, *and* has changed. A new empty object is neither populated
+// nor read from a cookie, so it is not saved and not removed: the stale cookie comes back on the
+// next request.
+//
+// Deleting the keys of the session already read does both. It is unauthenticated for the rest of
+// this request, and cookie-session sees a session it read from a cookie and saw change, so it
+// writes the emptied session back — an empty cookie rather than none, which the next request reads
+// as unauthenticated and signs in again.
+const dropSession = (session: AuthenticatedSession) => {
+  for (const key of Object.keys(session)) delete session[key]
 }
+
+export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOverride' | 'logger'>
+
+/**
+ * Copies an authenticated session's token to the authorization header, or drops the session where
+ * that token must not be used — leaving no header, so an interactive middleware mounted after this
+ * one signs the visitor in again.
+ *
+ * **An expired token.** The session cookie can outlive it. Copied, it fails bearer verification
+ * downstream while its presence suppresses interactive re-login, wedging the browser on 401s until
+ * the cookie expires.
+ *
+ * **A request that would sign in elsewhere.** `authorizationUrlRequestOverride` names the authority
+ * a login starts at, so an app that varies it per request holds sessions belonging to one authority
+ * and serves requests asking for another. Uncompared, the session passes through and the override
+ * never runs, so the request does nothing for anyone already signed in.
+ *
+ * The override is resolved on every request reaching here with an authority on its session, so keep
+ * it cheap. Passing none leaves the expiry drop and nothing else, as does a session written before
+ * the authority was recorded.
+ */
+export const createCopySessionJwtToBearerHeader = ({
+  authorizationUrlRequestOverride,
+  logger,
+}: CopySessionJwtOptions = {}): RequestHandler => {
+  return (req, _res, next) => {
+    const session = req.session
+    if (!!req.headers.authorization || !isAuthenticatedSession(session)) return next()
+
+    if (sessionJwtIsExpired(session)) {
+      logger?.verbose('Dropping the session: its access token has expired')
+      dropSession(session)
+      return next()
+    }
+
+    const copy = () => {
+      req.headers.authorization = `Bearer ${session.accessToken}`
+      next()
+    }
+
+    if (!authorizationUrlRequestOverride || typeof session.authority !== 'string') return copy()
+
+    // the override is called inside the chain, so one that throws synchronously lands in the catch
+    // below rather than escaping this handler
+    Promise.resolve()
+      .then(() => authorizationUrlRequestOverride(req))
+      .then((authorizationUrlRequest) => {
+        const authority = authorizationUrlRequest.authority
+        if (!authority || authority === session.authority) return copy()
+        logger?.info('Dropping the session: this request would sign in at another authority', {
+          sessionAuthority: session.authority,
+          requestAuthority: authority,
+        })
+        dropSession(session)
+        next()
+      })
+      .catch((error: unknown) => {
+        // an override that throws already fails every login with a 500, and copying is what this
+        // middleware did before the check existed — so a broken one is no worse here than it was
+        logger?.error('Failed to resolve the authorization URL request override', { error })
+        copy()
+      })
+  }
+}
+
+/** {@link createCopySessionJwtToBearerHeader} with no override: the expiry drop and nothing more. */
+export const copySessionJwtToBearerHeader: RequestHandler = createCopySessionJwtToBearerHeader()
 
 export type AuthorizationUrlRequestOverridable = Partial<
   Omit<AuthorizationUrlRequest, 'redirectUri' | 'codeChallenge' | 'codeChallengeMethod'>
