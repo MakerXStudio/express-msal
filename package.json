@@ -1,6 +1,6 @@
 {
   "name": "@makerx/express-msal",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": false,
   "description": "An express middleware for PKCE via Microsoft Authentication Library for Node (MSAL Node).",
   "author": "MakerX",
