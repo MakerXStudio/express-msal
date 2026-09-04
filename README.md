@@ -88,6 +88,20 @@ Otherwise the code is redeemed at the confidential client's own configured autho
 
 Only return an authority your app derived itself. An authority taken straight from a query parameter would let a crafted link aim a sign-in at any path under `login.microsoftonline.com`.
 
+### Sessions that would sign in somewhere else
+
+`copySessionJwtToBearerHeader` copies a session's token to the authorization header, which is how a signed-in browser reaches routes the interactive middleware guards — and, because that middleware skips any request already carrying the header, it is also what decides whether a session may stand in for a fresh sign-in. It drops the session instead of copying where it may not, so login re-runs on the same request.
+
+An app whose `authorizationUrlRequestOverride` varies the authority per request has a second reason to drop one: the session belongs to the authority it signed in at, and this request may ask for another. Pass the override to get that check:
+
+```ts
+app.use(createCopySessionJwtToBearerHeader({ authorizationUrlRequestOverride, logger }))
+```
+
+The authority the login used is carried on the session, and each later request is compared against what the override returns for it. Without this the session passes straight through and the override never runs, so a URL naming another tenant is a no-op for anyone already signed in — which is most people following a link.
+
+The override is resolved on requests that reach this middleware holding an authority, so keep it cheap. `copySessionJwtToBearerHeader` is the same middleware with no override: the expiry drop and nothing more.
+
 ## Detailed usage examples
 
 ```ts
