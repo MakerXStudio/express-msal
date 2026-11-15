@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express'
 import { describe, expect, it, vi } from 'vitest'
-import { AuthConfig, copySessionJwtToBearerHeader, createCopySessionJwtToBearerHeader } from './index'
+import { AuthConfig, copySessionJwtToBearerHeader, createCopySessionJwtToBearerHeader, sealValue } from './index'
 
 const jwtWithExp = (exp: number) =>
   `${Buffer.from('{}').toString('base64')}.${Buffer.from(JSON.stringify({ exp })).toString('base64')}.signature`
@@ -153,5 +153,107 @@ describe('copySessionJwtToBearerHeader', () => {
     copySessionJwtToBearerHeader(req, {} as Response, next as NextFunction)
 
     expect(req.headers.authorization).toBe(`Bearer ${session.accessToken}`)
+  })
+})
+
+const SECRET = 'the-cookie-secret'
+
+const createLogger = () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn(), verbose: vi.fn(), debug: vi.fn() })
+
+const runWithSecret = async (
+  session: Request['session'],
+  options: Pick<AuthConfig, 'sessionSecret' | 'authorizationUrlRequestOverride'> = { sessionSecret: SECRET },
+  logger = createLogger(),
+) => {
+  const req = { headers: {}, session } as unknown as Request
+  const next = vi.fn()
+  createCopySessionJwtToBearerHeader({ ...options, logger })(req, {} as Response, next as NextFunction)
+  await vi.waitFor(() => expect(next).toHaveBeenCalledOnce())
+  return req
+}
+
+describe('createCopySessionJwtToBearerHeader, with sessionSecret', () => {
+  it('copies the plain token of a sealed session, and does not change the session', async () => {
+    const accessToken = jwtWithExp(secondsFromNow(60))
+    const session = { isAuthenticated: true, accessToken: sealValue(accessToken, SECRET) }
+    const before = { ...session }
+    const req = await runWithSecret(session)
+
+    expect(req.headers.authorization).toBe(`Bearer ${accessToken}`)
+    // a changed session makes cookie-session send a Set-Cookie on every request
+    expect(req.session).toEqual(before)
+  })
+
+  it('copies a token that an earlier secret in the list sealed', async () => {
+    const accessToken = jwtWithExp(secondsFromNow(60))
+    const req = await runWithSecret(
+      { isAuthenticated: true, accessToken: sealValue(accessToken, 'the-old-secret') },
+      { sessionSecret: [SECRET, 'the-old-secret'] },
+    )
+
+    expect(req.headers.authorization).toBe(`Bearer ${accessToken}`)
+  })
+
+  it('drops the session when the sealed token has expired', async () => {
+    const session = { isAuthenticated: true, accessToken: sealValue(jwtWithExp(secondsFromNow(-60)), SECRET) }
+    const req = await runWithSecret(session)
+
+    expect(req.headers.authorization).toBeUndefined()
+    expect(req.session).toBe(session)
+    expect(req.session).toEqual({})
+  })
+
+  it('drops a session with a plain token, which a cookie from before the upgrade holds', async () => {
+    const session = { isAuthenticated: true, accessToken: jwtWithExp(secondsFromNow(60)) }
+    const req = await runWithSecret(session)
+
+    expect(req.headers.authorization).toBeUndefined()
+    expect(req.session).toBe(session)
+    expect(req.session).toEqual({})
+  })
+
+  it('drops a session whose token does not open, and logs at verbose', async () => {
+    const logger = createLogger()
+    const session = { isAuthenticated: true, accessToken: sealValue(jwtWithExp(secondsFromNow(60)), 'another-secret') }
+    const req = await runWithSecret(session, { sessionSecret: SECRET }, logger)
+
+    expect(req.headers.authorization).toBeUndefined()
+    expect(req.session).toEqual({})
+    expect(logger.verbose).toHaveBeenCalledWith(expect.stringContaining('not sealed with a current sessionSecret'))
+  })
+
+  it('compares the authority after it opens the token', async () => {
+    const session = {
+      isAuthenticated: true,
+      accessToken: sealValue(jwtWithExp(secondsFromNow(60)), SECRET),
+      authority: AUTHORITY,
+    }
+    const req = await runWithSecret(session, {
+      sessionSecret: SECRET,
+      authorizationUrlRequestOverride: () => ({ authority: OTHER_AUTHORITY }),
+    })
+
+    expect(req.headers.authorization).toBeUndefined()
+    expect(req.session).toEqual({})
+  })
+
+  it('throws when it is created with an empty sessionSecret', () => {
+    expect(() => createCopySessionJwtToBearerHeader({ sessionSecret: '' })).toThrow('sessionSecret')
+  })
+})
+
+describe('createCopySessionJwtToBearerHeader, without sessionSecret', () => {
+  it('drops a sealed session, and logs a warning once', async () => {
+    const logger = createLogger()
+    const middleware = createCopySessionJwtToBearerHeader({ logger })
+    const sealedSession = () => ({ isAuthenticated: true, accessToken: sealValue(jwtWithExp(secondsFromNow(60)), SECRET) })
+
+    for (let i = 0; i < 2; i++) {
+      const req = { headers: {}, session: sealedSession() } as unknown as Request
+      middleware(req, {} as Response, vi.fn() as NextFunction)
+      expect(req.headers.authorization).toBeUndefined()
+      expect(req.session).toEqual({})
+    }
+    expect(logger.warn).toHaveBeenCalledOnce()
   })
 })

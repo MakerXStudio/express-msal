@@ -1,7 +1,8 @@
 import { IConfidentialClientApplication } from '@azure/msal-node'
 import { Express, NextFunction, Request, Response } from 'express'
+import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { AuthConfig, pkceAuthenticationMiddleware } from './index'
+import { AuthConfig, openValue, pkceAuthenticationMiddleware } from './index'
 
 const createRequest = (): Request =>
   ({
@@ -26,6 +27,7 @@ const createResponse = (): Response =>
 const createMiddleware = (
   msalClient: IConfidentialClientApplication,
   authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride'],
+  sessionSecret?: AuthConfig['sessionSecret'],
 ) =>
   pkceAuthenticationMiddleware({
     app: { get: vi.fn() } as unknown as Express,
@@ -33,17 +35,21 @@ const createMiddleware = (
     scopes: ['openid'],
     logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), verbose: vi.fn(), debug: vi.fn() },
     authorizationUrlRequestOverride,
+    sessionSecret,
   })
 
 const AUTH_CODE_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=test'
 
 // run a login that reaches the redirect, and hand back the request the handler wrote its session to
-const login = async (authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride']) => {
+const login = async (
+  authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride'],
+  sessionSecret?: AuthConfig['sessionSecret'],
+) => {
   const msalClient = { getAuthCodeUrl: vi.fn().mockResolvedValue(AUTH_CODE_URL) } as unknown as IConfidentialClientApplication
   const req = createRequest()
   const res = createResponse()
 
-  createMiddleware(msalClient, authorizationUrlRequestOverride)(req, res, vi.fn() as NextFunction)
+  createMiddleware(msalClient, authorizationUrlRequestOverride, sessionSecret)(req, res, vi.fn() as NextFunction)
 
   await vi.waitFor(() => expect(res.redirect).toHaveBeenCalledWith(AUTH_CODE_URL))
   return { req, msalClient }
@@ -98,5 +104,27 @@ describe('login handler', () => {
     const { req } = await login()
 
     expect(req.session).not.toHaveProperty('authority')
+  })
+
+  it('seals the verifier when sessionSecret is set, and sends the challenge of the plain verifier', async () => {
+    const { req, msalClient } = await login(undefined, 'the-cookie-secret')
+    const { verifier } = (req.session as { pkceCodes: { verifier: string } }).pkceCodes
+    const plainVerifier = openValue(verifier, 'the-cookie-secret')
+
+    expect(verifier).toMatch(/^enc:v1:/)
+    expect(plainVerifier).toBeDefined()
+    expect(msalClient.getAuthCodeUrl).toHaveBeenCalledWith(
+      expect.objectContaining({ codeChallenge: createHash('sha256').update(plainVerifier!).digest('base64url') }),
+    )
+  })
+
+  it('leaves the verifier plain when sessionSecret is not set', async () => {
+    const { req } = await login()
+
+    expect((req.session as { pkceCodes: { verifier: string } }).pkceCodes.verifier).not.toMatch(/^enc:v1:/)
+  })
+
+  it('throws when it is created with an empty sessionSecret', () => {
+    expect(() => createMiddleware({} as IConfidentialClientApplication, undefined, [])).toThrow('sessionSecret')
   })
 })
