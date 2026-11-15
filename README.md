@@ -53,7 +53,7 @@ We recommend you use the `Web` platform auth configuration in Azure and use `Con
 
 We only use cookie-session with this library, along with secure-as-possible cookie configuration.
 
-The logic here is that access tokens are already persisted in browser storage and are freely available in the browser, however it's definitely possible to configure an insecure session cookie that does not restrict access to the cookie and access token adequately.
+cookie-session signs the cookie and does not encrypt it. Without `sessionSecret`, anyone who has the cookie can read the access token: they base64-decode the cookie value. Set `sessionSecret` to encrypt the token ([Encrypt the token in the session](#encrypt-the-token-in-the-session)).
 
 We strongly recommend configuring your [cookie-session options](https://github.com/expressjs/cookie-session#options) carefully, applying the most restrictive policy, setting `path`, `domain`, `sameSite`, `secure`, `httpOnly` etc.
 
@@ -81,6 +81,7 @@ app.use(cookieSession(cookieSessionOptions))
 | `augmentSession`                  | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                                        |
 | `logger`                          | Optional logger implementation to log token validation errors, handler setup info entry etc.                                                         |
 | `authorizationUrlRequestOverride` | Optional per request override of the authorisation URL request configuration, allows for things like dynamic authority for multi-tenanted apps, etc. |
+| `sessionSecret`                   | Optional secret, or list of secrets, that encrypts the access token and the PKCE verifier in the session. See below.                                 |
 
 If `authorizationUrlRequestOverride` returns an `authority`, it is carried on the PKCE session and reused to redeem the authorization code, so both legs of the sign-in use the same authority.
 
@@ -107,6 +108,46 @@ app.get('*', (req, res, next) => (req.headers.authorization ? next() : ensureAut
 The authority the login used is carried on the session as `authority`, and compared against what the override returns for each later request. The library writes that key after `augmentSession`, so an app cannot displace the value the comparison reads. Uncompared, the session passes straight through and the override never runs, so a URL naming another tenant does nothing for anyone already signed in — which is most people following a link.
 
 The override is resolved on every request reaching this middleware with an authority on its session, so keep it cheap. `copySessionJwtToBearerHeader` is the same middleware with no override: the expiry drop and nothing more.
+
+### Encrypt the token in the session
+
+Set `sessionSecret`, and the library encrypts the two values it writes to the session:
+
+- the access token, after a sign-in
+- the PKCE verifier, during a sign-in
+
+Pass the same secret to `createCopySessionJwtToBearerHeader`, which decrypts the token before it copies it. The `copySessionJwtToBearerHeader` constant has no secret, so it cannot read an encrypted token.
+
+```ts
+import { createCopySessionJwtToBearerHeader, pkceAuthenticationMiddleware } from '@makerx/express-msal'
+
+const sessionSecret = cookieSessionOptions.secret
+
+const ensureAuthenticated = pkceAuthenticationMiddleware({ ...authConfig, sessionSecret })
+app.use(createCopySessionJwtToBearerHeader({ sessionSecret, logger }))
+```
+
+The secret that signs the cookie can be the `sessionSecret`, because the library derives its own key from it with HKDF-SHA256. The encryption is AES-256-GCM. The library compresses the token first, so a 2.5 KB token gives a cookie of about 3.2 KB, under the 4,096-byte limit of a browser.
+
+The other fields of the session stay readable to the app: `isAuthenticated`, `authority`, `originalUrl`, and what `augmentSession` returns. Do not return the token from `augmentSession`, because that copy is not encrypted. Where the app reads the token itself, `openValue(req.session.accessToken, sessionSecret)` decrypts it.
+
+The copy middleware drops the session, and the user signs in again, in these cases:
+
+| Case                                                | Log          |
+| --------------------------------------------------- | ------------ |
+| `sessionSecret` set, and the token is not encrypted | `verbose`    |
+| `sessionSecret` set, and no secret decrypts it      | `verbose`    |
+| No `sessionSecret`, and the token is encrypted      | `warn`, once |
+
+The first case is a cookie from before the app set `sessionSecret`. After the upgrade, each browser therefore signs in once more.
+
+The last case is a configuration error. Each sign-in writes a token that the copy middleware cannot read, so the browser signs in again on each request. Pass the same `sessionSecret` to both middlewares.
+
+To change the secret, pass a list. The first secret encrypts, and each secret decrypts. A session encrypted with the old secret then still works until it ends:
+
+```ts
+const sessionSecret = [newSecret, oldSecret]
+```
 
 ## Detailed usage examples
 

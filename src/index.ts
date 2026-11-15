@@ -9,6 +9,9 @@ import {
 } from '@azure/msal-node'
 import { type Logger } from '@makerx/node-common'
 import { Express, Request, RequestHandler } from 'express'
+import { isSealedValue, openValue, sealValue, SessionSecret, toSecretList } from './sealed-value'
+
+export { isSealedValue, openValue, sealValue, type SessionSecret }
 
 // implementation based on the official pkce sample:
 // https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/samples/msal-node-samples/auth-code-pkce/src/index.ts
@@ -24,6 +27,7 @@ type MaybeSession = Record<string, unknown> | null | undefined
 type PKCEStartedSession = Session & { originalUrl: string; pkceCodes: PKCECodes; authority?: string }
 export type AuthenticatedSession = Session & {
   isAuthenticated: true
+  /** The access token, or a sealed value when `sessionSecret` is set. {@link openValue} decrypts it. */
   accessToken: string
   // the authority the login used, where an override named one. createCopySessionJwtToBearerHeader
   // compares it against each later request.
@@ -44,6 +48,7 @@ type AuthInput = Pick<AuthConfig, 'scopes' | 'logger'> & {
   msalClient: IConfidentialClientApplication
   authReplyRoute: string
   authorizationUrlRequestOverride?: AuthConfig['authorizationUrlRequestOverride']
+  secrets?: string[]
 }
 
 const createEnsureAuthenticatedHandler = (input: AuthInput): RequestHandler => {
@@ -70,7 +75,14 @@ const createReplyUrl = (req: Request, replyRoute: string) => {
   return url.toString()
 }
 
-const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationUrlRequestOverride, logger }: AuthInput): RequestHandler => {
+const createLoginHandler = ({
+  msalClient,
+  scopes,
+  authReplyRoute,
+  authorizationUrlRequestOverride,
+  logger,
+  secrets,
+}: AuthInput): RequestHandler => {
   const cryptoProvider = new CryptoProvider()
 
   return (req, res) => {
@@ -86,7 +98,8 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationU
         const authorizationUrlRequest = authorizationUrlRequestOverride ? await Promise.resolve(authorizationUrlRequestOverride(req)) : {}
 
         req.session = {
-          pkceCodes,
+          // the challenge goes to Entra ID in the URL, so only the verifier is sealed
+          pkceCodes: secrets ? { ...pkceCodes, verifier: sealValue(verifier, secrets) } : pkceCodes,
           originalUrl: `${PROXY_PATH}${req.originalUrl}`,
           // carry it so the reply leg can redeem the code at the authority it was minted at
           ...(authorizationUrlRequest.authority ? { authority: authorizationUrlRequest.authority } : {}),
@@ -114,17 +127,23 @@ const createLoginHandler = ({ msalClient, scopes, authReplyRoute, authorizationU
 type CreateAuthHandlerInput = Pick<AuthConfig, 'scopes' | 'logger' | 'augmentSession'> & {
   msalClient: IConfidentialClientApplication
   authReplyRoute: string
+  secrets?: string[]
 }
 
-const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession, logger }: CreateAuthHandlerInput): RequestHandler => {
+const createAuthHandler = ({
+  msalClient,
+  scopes,
+  authReplyRoute,
+  augmentSession,
+  logger,
+  secrets,
+}: CreateAuthHandlerInput): RequestHandler => {
   return (req, res) => {
     if (!isPKCEStartedSession(req.session)) throw Error('Invalid session data for this (auth reply) route')
 
-    const {
-      originalUrl,
-      authority,
-      pkceCodes: { verifier },
-    } = req.session
+    const { originalUrl, authority, pkceCodes } = req.session
+    const verifier = secrets ? openValue(pkceCodes.verifier, secrets) : pkceCodes.verifier
+    if (secrets && !verifier) throw Error('Invalid session data for this (auth reply) route')
 
     if (req.query.error) {
       const details = { error: req.query.error, error_description: req.query.error_description }
@@ -153,7 +172,7 @@ const createAuthHandler = ({ msalClient, scopes, authReplyRoute, augmentSession,
 
         let session: AuthenticatedSession = {
           isAuthenticated: true,
-          accessToken: response?.accessToken,
+          accessToken: secrets ? sealValue(response.accessToken, secrets) : response.accessToken,
         }
 
         if (augmentSession) session = { ...session, ...augmentSession(response) }
@@ -183,7 +202,7 @@ export const logout: RequestHandler = (req, res) => {
 
 // decode the JWT exp claim (no verification — that's the resource server's job);
 // unparsable tokens pass through so downstream bearer verification decides
-const sessionJwtIsExpired = ({ accessToken }: AuthenticatedSession): boolean => {
+const jwtIsExpired = (accessToken: string): boolean => {
   try {
     const payload = JSON.parse(Buffer.from(accessToken.split('.')[1], 'base64').toString()) as { exp?: unknown }
     return typeof payload.exp === 'number' && payload.exp * 1000 <= Date.now()
@@ -212,7 +231,7 @@ const dropSession = (session: AuthenticatedSession) => {
   for (const key of Object.keys(session)) delete session[key]
 }
 
-export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOverride' | 'logger'>
+export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOverride' | 'logger' | 'sessionSecret'>
 
 /**
  * Copies an authenticated session's token to the authorization header, or drops the session where
@@ -228,6 +247,11 @@ export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOve
  * and serves requests asking for another. Uncompared, the session passes through and the override
  * never runs, so the request does nothing for anyone already signed in.
  *
+ * **A token that does not open.** With `sessionSecret`, a token that is not sealed, or that no
+ * secret opens, is dropped. A cookie from before the app set `sessionSecret` holds a plain token, so
+ * each browser signs in once more. Without `sessionSecret`, a sealed token is dropped, and a warning
+ * is logged once: pass the `sessionSecret` that `pkceAuthenticationMiddleware` has.
+ *
  * The override is resolved on every request reaching here with an authority on its session, so keep
  * it cheap. Passing none leaves the expiry drop and nothing else, as does a session written before
  * the authority was recorded.
@@ -235,19 +259,45 @@ export type CopySessionJwtOptions = Pick<AuthConfig, 'authorizationUrlRequestOve
 export const createCopySessionJwtToBearerHeader = ({
   authorizationUrlRequestOverride,
   logger,
+  sessionSecret,
 }: CopySessionJwtOptions = {}): RequestHandler => {
+  const secrets = sessionSecret === undefined ? undefined : toSecretList(sessionSecret)
+  let warnedOfSealedToken = false
+
+  // the plain token, or undefined where the session must be dropped. The session is never changed
+  // here, so cookie-session sends no Set-Cookie for a session that is only read.
+  const readToken = (session: AuthenticatedSession): string | undefined => {
+    if (!secrets) {
+      if (!isSealedValue(session.accessToken)) return session.accessToken
+      if (!warnedOfSealedToken) {
+        warnedOfSealedToken = true
+        logger?.warn('Dropping the session: its access token is sealed, and this middleware has no sessionSecret')
+      }
+      return undefined
+    }
+    const accessToken = openValue(session.accessToken, secrets)
+    if (!accessToken) logger?.verbose('Dropping the session: its access token is not sealed with a current sessionSecret')
+    return accessToken
+  }
+
   return (req, _res, next) => {
     const session = req.session
     if (!!req.headers.authorization || !isAuthenticatedSession(session)) return next()
 
-    if (sessionJwtIsExpired(session)) {
+    const accessToken = readToken(session)
+    if (!accessToken) {
+      dropSession(session)
+      return next()
+    }
+
+    if (jwtIsExpired(accessToken)) {
       logger?.verbose('Dropping the session: its access token has expired')
       dropSession(session)
       return next()
     }
 
     const copy = () => {
-      req.headers.authorization = `Bearer ${session.accessToken}`
+      req.headers.authorization = `Bearer ${accessToken}`
       next()
     }
 
@@ -291,6 +341,12 @@ export interface AuthConfig {
   augmentSession?: (response: AuthenticationResult) => Record<string, unknown> | undefined
   logger?: Logger
   authorizationUrlRequestOverride?: (req: Request) => AuthorizationUrlRequestOverridable | Promise<AuthorizationUrlRequestOverridable>
+  /**
+   * Encrypts the access token and the PKCE verifier in the session. The first secret encrypts, and
+   * each secret decrypts, so an app can change the secret without ending each session. Pass the
+   * same value to {@link createCopySessionJwtToBearerHeader}.
+   */
+  sessionSecret?: SessionSecret
 }
 
 export const pkceAuthenticationMiddleware = ({
@@ -301,16 +357,19 @@ export const pkceAuthenticationMiddleware = ({
   augmentSession,
   logger,
   authorizationUrlRequestOverride,
+  sessionSecret,
 }: AuthConfig): RequestHandler => {
+  const secrets = sessionSecret === undefined ? undefined : toSecretList(sessionSecret)
   const ensureAuthenticated = createEnsureAuthenticatedHandler({
     msalClient,
     scopes,
     authReplyRoute,
     authorizationUrlRequestOverride,
     logger,
+    secrets,
   })
 
-  app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger }))
+  app.get(authReplyRoute, createAuthHandler({ msalClient, scopes, authReplyRoute, augmentSession, logger, secrets }))
   logger?.info(`Auth reply handler added to route ${authReplyRoute}`)
 
   return ensureAuthenticated

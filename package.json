@@ -1,6 +1,6 @@
 {
   "name": "@makerx/express-msal",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "private": false,
   "description": "An express middleware for PKCE via Microsoft Authentication Library for Node (MSAL Node).",
   "author": "MakerX",
@@ -61,6 +61,7 @@
     "@typescript-eslint/parser": "8.59.0",
     "@vitest/coverage-v8": "4.1.5",
     "better-npm-audit": "^3.11.0",
+    "cookie-session": "^2.1.1",
     "copyfiles": "^2.4.1",
     "eslint": "9.39.4",
     "eslint-config-prettier": "^9.1.2",
