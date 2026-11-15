@@ -121,11 +121,16 @@ Pass the same secret to `createCopySessionJwtToBearerHeader`, which decrypts the
 ```ts
 import { createCopySessionJwtToBearerHeader, pkceAuthenticationMiddleware } from '@makerx/express-msal'
 
-const sessionSecret = cookieSessionOptions.secret
+const sessionSecret = process.env.COOKIE_SECRET
+if (!sessionSecret) throw new Error('Set COOKIE_SECRET')
+
+app.use(cookieSession({ ...cookieSessionOptions, secret: sessionSecret }))
 
 const ensureAuthenticated = pkceAuthenticationMiddleware({ ...authConfig, sessionSecret })
 app.use(createCopySessionJwtToBearerHeader({ sessionSecret, logger }))
 ```
+
+An undefined `sessionSecret` turns the encryption off, so read the secret from a value that is always set. An app that signs its cookie with `keys` can pass that list as `sessionSecret`.
 
 The secret that signs the cookie can be the `sessionSecret`, because the library derives its own key from it with HKDF-SHA256. The encryption is AES-256-GCM. The library compresses the token first, so a 2.5 KB token gives a cookie of about 3.2 KB, under the 4,096-byte limit of a browser.
 
