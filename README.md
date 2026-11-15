@@ -72,16 +72,16 @@ app.use(cookieSession(cookieSessionOptions))
 
 `AuthConfig`:
 
-| Option                            | Description                                                                                                                                          |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app`                             | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                                 |
-| `msalClient`                      | The `@azure/msal-node` `ConfidentialClientApplication` instance.                                                                                     |
-| `scopes`                          | The scopes to use to aquire the accessToken.                                                                                                         |
-| `authReplyRoute`                  | The route on which the auth completion handler is set up, which must be configured in the Azure App Registration, default: `/auth`.                  |
-| `augmentSession`                  | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                                        |
-| `logger`                          | Optional logger implementation to log token validation errors, handler setup info entry etc.                                                         |
-| `authorizationUrlRequestOverride` | Optional per request override of the authorisation URL request configuration, allows for things like dynamic authority for multi-tenanted apps, etc. |
-| `sessionSecret`                   | Optional secret, or list of secrets, that encrypts the access token and the PKCE verifier in the session. See below.                                 |
+| Option                            | Description                                                                                                                                                                       |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`                             | The Express JS app on which the auth reply handler is set up (see `authReplyRoute`).                                                                                              |
+| `msalClient`                      | The `@azure/msal-node` `ConfidentialClientApplication` instance.                                                                                                                  |
+| `scopes`                          | The scopes to use to aquire the accessToken.                                                                                                                                      |
+| `authReplyRoute`                  | The route on which the auth completion handler is set up, which must be configured in the Azure App Registration, default: `/auth`.                                               |
+| `augmentSession`                  | Optional function to add additional info to the session from the msal `AuthenticationResult`.                                                                                     |
+| `logger`                          | Optional logger implementation to log token validation errors, handler setup info entry etc.                                                                                      |
+| `authorizationUrlRequestOverride` | Optional per request override of the authorisation URL request configuration, allows for things like dynamic authority for multi-tenanted apps, etc.                              |
+| `sessionSecret`                   | Optional secret, or list of secrets, that encrypts the access token and the PKCE verifier in the session ([Encrypt the token in the session](#encrypt-the-token-in-the-session)). |
 
 If `authorizationUrlRequestOverride` returns an `authority`, it is carried on the PKCE session and reused to redeem the authorization code, so both legs of the sign-in use the same authority.
 
